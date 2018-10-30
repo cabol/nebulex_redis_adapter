@@ -3,8 +3,12 @@
 Application.put_env(
   :nebulex,
   BenchCache,
-  host: "127.0.0.1",
-  port: 6379
+  pools: [
+    primary: [
+      host: "127.0.0.1",
+      port: 6379
+    ]
+  ]
 )
 
 defmodule BenchCache do
@@ -79,13 +83,13 @@ benchmarks = %{
   "update_counter" => fn {cache, _random} ->
     cache.update_counter(:counter, 1)
   end,
-  # "all" => fn {cache, _random} ->
-  #   cache.all()
-  # end,
+  "all" => fn {cache, _random} ->
+    cache.all()
+  end,
   "transaction" => fn {cache, random} ->
     cache.transaction(
       fn ->
-        cache.update_counter(random, 1)
+        cache.update(random, 1, &Kernel.+(&1, 1))
         :ok
       end,
       keys: [random]

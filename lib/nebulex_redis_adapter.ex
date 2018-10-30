@@ -73,6 +73,44 @@ defmodule NebulexRedisAdapter do
           ]
         ]
 
+  ## Queryable API
+
+  The queryable API is implemented by means of `KEYS` command, but it has some
+  limitations we have to be aware of:
+
+    * Only strings (`String.t()`) are allowed as query parameter.
+
+    * Only keys can be queried. Therefore, `:return` option has not any affects,
+      since keys are always returned. In the case you want to return the value
+      for the given key pattern (query), you can perform `get_many` with the
+      returned keys.
+
+  ## Examples
+
+      iex> MyApp.RedisCache.set_many(%{
+      ...>   "firstname" => "Albert",
+      ...>   "lastname" => "Einstein",
+      ...>   "age" => 76
+      ...> })
+      :ok
+
+      iex> MyApp.RedisCache.all("**name**")
+      ["firstname", "lastname"]
+
+      iex> MyApp.RedisCache.all("a??")
+      ["age"]
+
+      iex> MyApp.RedisCache.all()
+      ["age", "firstname", "lastname"]
+
+      iex> stream = TestCache.stream("**name**")
+      iex> stream |> Enum.to_list()
+      ["firstname", "lastname"]
+
+      # get the values for the returned queried keys
+      iex> "**name**" |> MyApp.RedisCache.all() |> MyApp.RedisCache.get_many()
+      %{"firstname" => "Albert", "lastname" => "Einstein"}
+
   For more information about the usage, check out `Nebulex.Cache` as well.
   """
 
@@ -81,6 +119,7 @@ defmodule NebulexRedisAdapter do
 
   # Provide Cache Implementation
   @behaviour Nebulex.Adapter
+  @behaviour Nebulex.Adapter.Queryable
 
   alias Nebulex.Object
   alias NebulexRedisAdapter.Command
@@ -264,6 +303,35 @@ defmodule NebulexRedisAdapter do
     :ok
   end
 
+  ## Queryable
+
+  @impl true
+  def all(cache, query, _opts) do
+    query
+    |> validate_query()
+    |> perform_query(cache)
+  end
+
+  @impl true
+  def stream(cache, query, _opts) do
+    query
+    |> validate_query()
+    |> do_stream(cache)
+  end
+
+  def do_stream(pattern, cache) do
+    Stream.resource(
+      fn ->
+        perform_query(pattern, cache)
+      end,
+      fn
+        [] -> {:halt, []}
+        elems -> {elems, []}
+      end,
+      & &1
+    )
+  end
+
   ## Private Functions
 
   defp with_ttl(:object, cache, key, pipeline) do
@@ -326,4 +394,15 @@ defmodule NebulexRedisAdapter do
   defp cmd_opts(:add, :action, acc), do: ["NX" | acc]
   defp cmd_opts(:replace, :action, acc), do: ["XX" | acc]
   defp cmd_opts(ttl, :ttl, acc), do: ["EX", ttl | acc]
+
+  defp validate_query(nil), do: "*"
+  defp validate_query(pattern) when is_binary(pattern), do: pattern
+
+  defp validate_query(pattern) do
+    raise Nebulex.QueryError, message: "invalid pattern", query: pattern
+  end
+
+  defp perform_query(pattern, cache) do
+    Command.exec!(cache, ["KEYS", pattern])
+  end
 end
