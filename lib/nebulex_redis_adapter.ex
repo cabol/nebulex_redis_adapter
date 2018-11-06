@@ -173,6 +173,13 @@ defmodule NebulexRedisAdapter do
         |> Keyword.delete(:pool_size)
         |> Keyword.put(:name, :"#{cache}_redix_#{i}")
 
+      opts =
+        if url = opts[:url] do
+          url
+        else
+          opts
+        end
+
       Supervisor.child_spec({Redix, opts}, id: {Redix, i})
     end
   end
