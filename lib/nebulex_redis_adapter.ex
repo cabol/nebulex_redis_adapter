@@ -179,7 +179,7 @@ defmodule NebulexRedisAdapter do
 
         url ->
           opts = opts |> Keyword.delete(:url)
-          Supervisor.child_spec({Redix, [url, opts]}, id: {Redix, i})
+          Supervisor.child_spec({Redix, {url, opts}}, id: {Redix, i})
       end
     end
   end
