@@ -40,8 +40,8 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp deps do
     [
-      {:nebulex, github: "cabol/nebulex", branch: "master"},
-      {:redix, "~> 0.8.1"},
+      {:redix, "~> 0.8"},
+      {:nebulex, github: "cabol/nebulex", tag: "v1.0.0", optional: true},
 
       # Test
       {:excoveralls, "~> 0.6", only: :test},

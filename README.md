@@ -14,6 +14,7 @@ Add `nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
+    {:nebulex, "~> 1.0"},
     {:nebulex_redis_adapter, github: "cabol/nebulex_redis_adapter", branch: "master"}
   ]
 end
