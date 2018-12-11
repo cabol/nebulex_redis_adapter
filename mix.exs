@@ -1,13 +1,13 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "1.0.0-dev"
+  @version "1.0.0"
 
   def project do
     [
       app: :nebulex_redis_adapter,
       version: @version,
-      elixir: "~> 1.5",
+      elixir: "~> 1.6",
       deps: deps(),
 
       # Docs
@@ -40,12 +40,13 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp deps do
     [
-      {:redix, "~> 0.8"},
+      {:redix, "~> 0.9"},
 
-      # This is because adapter tests need some support modules and shared
-      # tests from Nebulex, and the hex dep doesn't include test's folder.
-      # For your project you should set the hex version: {:nebulex, "~> 1.0"}
-      {:nebulex, github: "cabol/nebulex", tag: "v1.0.0", optional: true},
+      # This is because the adapter tests need some support modules and shared
+      # tests from nebulex dependency, and the hex dependency doesn't include
+      # the test folder. Hence, to run the tests it is necessary to fetch
+      # nebulex dependency directly from GH.
+      {:nebulex, nebulex_opts()},
 
       # Test
       {:excoveralls, "~> 0.6", only: :test},
@@ -57,9 +58,17 @@ defmodule NebulexRedisAdapter.MixProject do
       {:credo, "~> 0.10", optional: true, only: [:dev, :test]},
 
       # Docs
-      {:ex_doc, "~> 0.17", only: :docs},
+      {:ex_doc, "~> 0.19", only: :dev, runtime: false},
       {:inch_ex, "~> 0.5", only: :docs}
     ]
+  end
+
+  defp nebulex_opts do
+    if System.get_env("NBX_TEST") do
+      [github: "cabol/nebulex", tag: "v1.0.0"]
+    else
+      "~> 1.0"
+    end
   end
 
   defp package do

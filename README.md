@@ -20,8 +20,7 @@ Add `nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:nebulex, "~> 1.0"},
-    {:nebulex_redis_adapter, github: "cabol/nebulex_redis_adapter"}
+    {:nebulex_redis_adapter, "~> 1.0"}
   ]
 end
 ```
@@ -115,12 +114,37 @@ host and port for each proxy.
 
 ## Testing
 
-Before to run the tests, ensure you have Redis up and running on **localhiost**
-and port **6379**. Then run:
+First of all, ensure you have Redis up and running on **localhiost**
+and port **6379** (default host and port).
+
+Since `NebulexRedisAdapter` uses the support modules and shared tests from
+Nebulex and by default its `test` folder is not included within the `hex`
+dependency, it is necessary to fetch `:nebulex` dependency directly from GtiHub.
+This is done by setting the environment variable `NBX_TEST`, like so:
+
+```
+$ export NBX_TEST=true
+```
+
+Fetch deps:
+
+```
+$ mix deps.get
+```
+
+Now we can run the tests:
 
 ```
 $ mix test
 ```
+
+Running tests with coverage:
+
+```
+$ mix coveralls.html
+```
+
+You can find the coverage report within `cover/excoveralls.html`.
 
 ## Benchmarks
 
@@ -130,8 +154,33 @@ to learn more, see the [benchmarks](./benchmarks) directory.
 To run the benchmarks:
 
 ```
-$ mix run benchmarks/benchmark.exs
+$ mix deps.get && mix run benchmarks/benchmark.exs
 ```
+
+## Contributing
+
+Contributions to Nebulex are very welcome and appreciated!
+
+Use the [issue tracker](https://github.com/cabol/nebulex_redis_adapter/issues)
+for bug reports or feature requests. Open a
+[pull request](https://github.com/cabol/nebulex_redis_adapter/pulls)
+when you are ready to contribute.
+
+When submitting a pull request you should not update the [CHANGELOG.md](CHANGELOG.md),
+and also make sure you test your changes thoroughly, include unit tests
+alongside new or changed code.
+
+Before to submit a PR it is highly recommended to run:
+
+ * `export NBX_TEST=true` to fetch Nebulex from GH directly and be able to
+   re-use shared tests.
+ * `mix test` to run tests
+ * `mix coveralls.html && open cover/excoveralls.html` to run tests and check
+   out code coverage (expected 100%).
+ * `mix format && mix credo --strict` to format your code properly and find code
+   style issues
+ * `mix dialyzer` to run dialyzer for type checking; might take a while on the
+   first invocation
 
 ## Copyright and License
 

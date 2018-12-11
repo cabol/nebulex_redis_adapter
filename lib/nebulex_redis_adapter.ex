@@ -325,7 +325,7 @@ defmodule NebulexRedisAdapter do
     |> do_stream(cache)
   end
 
-  def do_stream(pattern, cache) do
+  defp do_stream(pattern, cache) do
     Stream.resource(
       fn ->
         execute_query(pattern, cache)

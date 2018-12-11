@@ -9,7 +9,7 @@ sudo: false
 services:
   - redis-server
 env:
-  - MIX_ENV=test
+  - NBX_TEST=true MIX_ENV=test
 before_script:
   - epmd -daemon
   - mix deps.get --only test
@@ -20,5 +20,5 @@ script:
   - mix credo --strict
   - mix format --check-formatted
 after_script:
-  - mix deps.get --only docs
+  - MIX_ENV=docs mix deps.get
   - MIX_ENV=docs mix inch.report
