@@ -1,0 +1,24 @@
+language: elixir
+elixir:
+  - 1.6
+  - 1.7
+otp_release:
+  - 20.3
+  - 21.1
+sudo: false
+services:
+  - redis-server
+env:
+  - MIX_ENV=test
+before_script:
+  - epmd -daemon
+  - mix deps.get --only test
+script:
+  - mix coveralls.travis
+  - mix dialyzer --plt
+  - mix dialyzer --halt-exit-status
+  - mix credo --strict
+  - mix format --check-formatted
+after_script:
+  - mix deps.get --only docs
+  - MIX_ENV=docs mix inch.report

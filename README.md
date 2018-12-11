@@ -1,5 +1,11 @@
 # Nebulex adapter for Redis
 
+[![Build Status](https://travis-ci.org/cabol/nebulex_redis_adapter.svg?branch=master)](https://travis-ci.org/cabol/nebulex_redis_adapter)
+[![Coverage Status](https://coveralls.io/repos/github/cabol/nebulex_redis_adapter/badge.svg?branch=master)](https://coveralls.io/github/cabol/nebulex_redis_adapter?branch=master)
+[![Inline docs](http://inch-ci.org/github/cabol/nebulex_redis_adapter.svg)](http://inch-ci.org/github/cabol/nebulex_redis_adapter)
+[![Hex Version](https://img.shields.io/hexpm/v/nebulex_redis_adapter.svg)](https://hex.pm/packages/nebulex_redis_adapter)
+[![Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/nebulex_redis_adapter)
+
 This adapter is implemented using [Redix](https://github.com/whatyouhide/redix),
 a Redis driver for Elixir.
 

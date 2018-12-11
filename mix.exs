@@ -53,8 +53,8 @@ defmodule NebulexRedisAdapter.MixProject do
       {:benchee_html, "~> 0.5", optional: true, only: :dev},
 
       # Code Analysis
-      {:dialyxir, "~> 0.5", only: :dev, runtime: false},
-      {:credo, "~> 0.7", only: [:dev, :test]},
+      {:dialyxir, "~> 0.5", optional: true, only: [:dev, :test], runtime: false},
+      {:credo, "~> 0.10", optional: true, only: [:dev, :test]},
 
       # Docs
       {:ex_doc, "~> 0.17", only: :docs},
