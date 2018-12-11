@@ -67,8 +67,7 @@ defmodule NebulexRedisAdapter do
             port: 6379
           ],
           secondary: [
-            host: "10.10.10.10",
-            port: 6379,
+            url: "redis://10.10.10.10:6379",
             pool_size: 2
           ]
         ]
@@ -316,7 +315,7 @@ defmodule NebulexRedisAdapter do
   def all(cache, query, _opts) do
     query
     |> validate_query()
-    |> perform_query(cache)
+    |> execute_query(cache)
   end
 
   @impl true
@@ -329,7 +328,7 @@ defmodule NebulexRedisAdapter do
   def do_stream(pattern, cache) do
     Stream.resource(
       fn ->
-        perform_query(pattern, cache)
+        execute_query(pattern, cache)
       end,
       fn
         [] -> {:halt, []}
@@ -409,7 +408,7 @@ defmodule NebulexRedisAdapter do
     raise Nebulex.QueryError, message: "invalid pattern", query: pattern
   end
 
-  defp perform_query(pattern, cache) do
+  defp execute_query(pattern, cache) do
     Command.exec!(cache, ["KEYS", pattern])
   end
 end

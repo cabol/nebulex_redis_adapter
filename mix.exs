@@ -1,12 +1,12 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "1.0.0-dev"
 
   def project do
     [
       app: :nebulex_redis_adapter,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.5",
       deps: deps(),
 
@@ -41,6 +41,10 @@ defmodule NebulexRedisAdapter.MixProject do
   defp deps do
     [
       {:redix, "~> 0.8"},
+
+      # This is because adapter tests need some support modules and shared
+      # tests from Nebulex, and the hex dep doesn't include test's folder.
+      # For your project you should set the hex version: {:nebulex, "~> 1.0"}
       {:nebulex, github: "cabol/nebulex", tag: "v1.0.0", optional: true},
 
       # Test

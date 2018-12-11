@@ -9,8 +9,7 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache,
       port: 6379
     ],
     secondary: [
-      host: "127.0.0.1",
-      port: 6379,
+      url: "redis://localhost:6379",
       pool_size: 2
     ]
   ]

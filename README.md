@@ -1,11 +1,11 @@
 # Nebulex adapter for Redis
 
-This adapter is implemented by means of [Redix](https://github.com/whatyouhide/redix),
+This adapter is implemented using [Redix](https://github.com/whatyouhide/redix),
 a Redis driver for Elixir.
 
 This adapter supports multiple connection pools against different Redis nodes
-in a cluster. This feature enables resiliency, be able to survive in case any
-node(s) gets unreachable.
+in a cluster. This feature enables resiliency and also be able to survive
+in case any node(s) gets unreachable.
 
 ## Installation
 
@@ -15,7 +15,7 @@ Add `nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
 defp deps do
   [
     {:nebulex, "~> 1.0"},
-    {:nebulex_redis_adapter, github: "cabol/nebulex_redis_adapter", branch: "master"}
+    {:nebulex_redis_adapter, github: "cabol/nebulex_redis_adapter"}
   ]
 end
 ```
@@ -53,6 +53,59 @@ Since this adapter is implemented by means of `Redix`, it inherits the same
 options, including regular Redis options and connection options as well. For
 more information about the options, please check out `NebulexRedisAdapter`
 module and also [Redix](https://github.com/whatyouhide/redix).
+
+## Distributed Caching
+
+There are different ways to support distributed caching using
+`NebulexRedisAdapter`.
+
+> The good news is Redis is distributed as well, it is a built-in feature since
+  version 3.0 (or greater) via [Redis Cluster](https://redis.io/topics/cluster-tutorial).
+
+### Using Redis Cluster
+
+By setting up [Redis Cluster](https://redis.io/topics/cluster-tutorial), all
+distributed features and distribution work is automatically provided by Redis
+Cluster under-the-hood. From the adapter's side, there is not additional work
+more than add to the config the nodes of the cluster you want to cannect to.
+
+> This one could be the easiest and recommended way for distributed caching
+  using Redis and `NebulexRedisAdapter`.
+
+### Using `Nebulex.Adapters.Dist`
+
+Another simple option is to use the `Nebulex.Adapters.Dist` and set as local
+cache the `NebulexRedisAdapter`. The idea here is that each Elixir node running
+the distributed cache (`Nebulex.Adapters.Dist`) will have as local backend or
+cache a Redis instance (handled by `NebulexRedisAdapter`).
+
+
+This example shows how the setup a distributed cache using
+`Nebulex.Adapters.Dist` and `NebulexRedisAdapter`:
+
+```elixir
+defmodule MyApp.DistributedCache do
+  use Nebulex.Cache,
+    otp_app: :nebulex,
+    adapter: Nebulex.Adapters.Dist,
+    local: MyApp.DistributedCache.RedisLocalCache
+
+  defmodule RedisLocalCache do
+    use Nebulex.Cache,
+      otp_app: :nebulex,
+      adapter: NebulexRedisAdapter
+  end
+end
+```
+
+### Using a Redis Proxy
+
+The other option is to use a proxy, like [twemproxy](https://github.com/twitter/twemproxy)
+on top of Redis. In this case, the proxy does the distribution work, and from
+the adparter's side (`NebulexRedisAdapter`), it would be only configuration.
+Instead of connect the adapter against the Redis nodes, we connect it against
+the proxy nodes, this means, in the config, we just setup the pools with the
+host and port for each proxy.
 
 ## Testing
 
