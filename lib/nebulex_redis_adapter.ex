@@ -116,12 +116,15 @@ defmodule NebulexRedisAdapter do
   # Inherit default transaction implementation
   use Nebulex.Adapter.Transaction
 
+  # Inherit default hash slot implementation
+  use NebulexRedisAdapter.Cluster.HashSlot
+
   # Provide Cache Implementation
   @behaviour Nebulex.Adapter
   @behaviour Nebulex.Adapter.Queryable
 
   alias Nebulex.Object
-  alias NebulexRedisAdapter.Command
+  alias NebulexRedisAdapter.{Cluster, Command}
 
   @default_pool_size System.schedulers_online()
 
@@ -131,54 +134,53 @@ defmodule NebulexRedisAdapter do
   defmacro __before_compile__(env) do
     otp_app = Module.get_attribute(env.module, :otp_app)
     config = Module.get_attribute(env.module, :config)
+    pool_size = Keyword.get(config, :pool_size, @default_pool_size)
+    cluster_config = Keyword.get(config, :cluster)
+    hash_slot = Keyword.get(config, :hash_slot, __MODULE__)
 
-    pool_size =
-      if pools = Keyword.get(config, :pools) do
-        Enum.reduce(pools, 0, fn {_, pool}, acc ->
-          acc + Keyword.get(pool, :pool_size, @default_pool_size)
-        end)
-      else
-        raise ArgumentError,
-              "missing :pools configuration in " <>
-                "config #{inspect(otp_app)}, #{inspect(env.module)}"
-      end
+    if is_nil(cluster_config) and is_nil(Keyword.get(config, :redix_opts)) do
+      raise ArgumentError,
+            "missing :redix_opts configuration in " <>
+              "config #{inspect(otp_app)}, #{inspect(env.module)}"
+    end
 
     quote do
       def __pool_size__, do: unquote(pool_size)
+
+      def cluster_enabled?, do: not is_nil(unquote(cluster_config))
+
+      def keyslot(key), do: unquote(hash_slot).compute(key)
     end
   end
 
   @impl true
   def init(opts) do
     cache = Keyword.fetch!(opts, :cache)
+    pool_size = Keyword.get(opts, :pool_size, @default_pool_size)
 
     children =
-      opts
-      |> Keyword.fetch!(:pools)
-      |> Enum.reduce([], fn {_, pool}, acc ->
-        acc ++ children(pool, cache, acc)
-      end)
+      if Keyword.get(opts, :cluster) do
+        Cluster.children(cache, pool_size, opts)
+      else
+        children(cache, pool_size, opts)
+      end
 
     {:ok, children}
   end
 
-  defp children(pool, cache, acc) do
-    offset = length(acc)
-    pool_size = Keyword.get(pool, :pool_size, @default_pool_size)
+  defp children(cache, pool_size, opts) do
+    conn_opts = Keyword.get(opts, :redix_opts, [])
 
-    for i <- offset..(offset + pool_size - 1) do
-      opts =
-        pool
-        |> Keyword.delete(:pool_size)
-        |> Keyword.put(:name, :"#{cache}_redix_#{i}")
+    for i <- 0..(pool_size - 1) do
+      conn_opts = Keyword.put(conn_opts, :name, :"#{cache}_redix_#{i}")
 
-      case opts[:url] do
+      case conn_opts[:url] do
         nil ->
-          Supervisor.child_spec({Redix, opts}, id: {Redix, i})
+          Supervisor.child_spec({Redix, conn_opts}, id: {Redix, i})
 
         url ->
-          opts = opts |> Keyword.delete(:url)
-          Supervisor.child_spec({Redix, {url, opts}}, id: {Redix, i})
+          conn_opts = conn_opts |> Keyword.delete(:url)
+          Supervisor.child_spec({Redix, {url, conn_opts}}, id: {Redix, i})
       end
     end
   end
@@ -192,8 +194,29 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def get_many(cache, keys, _opts) do
+    do_get_many(cache.cluster_enabled?, cache, keys)
+  end
+
+  defp do_get_many(false, cache, keys) do
+    do_get_many(nil, cache, keys)
+  end
+
+  defp do_get_many(true, cache, keys) do
+    keys
+    |> group_keys_by_hash_slot(cache)
+    |> Enum.reduce(%{}, fn {_slot, keys}, acc ->
+      return =
+        keys
+        |> hash_slot_key()
+        |> do_get_many(cache, keys)
+
+      Map.merge(acc, return)
+    end)
+  end
+
+  defp do_get_many(hash_slot_key, cache, keys) do
     cache
-    |> Command.exec!(["MGET" | for(k <- keys, do: encode(k))])
+    |> Command.exec!(["MGET" | for(k <- keys, do: encode(k))], hash_slot_key)
     |> Enum.reduce({keys, %{}}, fn
       nil, {[_key | keys], acc} ->
         {keys, acc}
@@ -207,8 +230,9 @@ defmodule NebulexRedisAdapter do
   @impl true
   def set(cache, object, opts) do
     cmd_opts = cmd_opts(opts, action: :set, ttl: nil)
+    redis_k = encode(object.key)
 
-    case Command.exec!(cache, ["SET", encode(object.key), encode(object) | cmd_opts]) do
+    case Command.exec!(cache, ["SET", redis_k, encode(object) | cmd_opts], redis_k) do
       "OK" -> true
       nil -> false
     end
@@ -216,6 +240,24 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def set_many(cache, objects, opts) do
+    set_many(cache.cluster_enabled?, cache, objects, opts)
+  end
+
+  defp set_many(false, cache, objects, opts) do
+    set_many(nil, cache, objects, opts)
+  end
+
+  defp set_many(true, cache, objects, opts) do
+    objects
+    |> group_keys_by_hash_slot(cache)
+    |> Enum.each(fn {_slot, objects} ->
+      objects
+      |> hash_slot_key()
+      |> set_many(cache, objects, opts)
+    end)
+  end
+
+  defp set_many(hash_slot_key, cache, objects, opts) do
     default_exp =
       opts
       |> Keyword.get(:ttl)
@@ -233,13 +275,14 @@ defmodule NebulexRedisAdapter do
         {[encode(object), redis_k | acc1], acc2}
       end)
 
-    ["OK" | _] = Command.pipeline!(cache, [Enum.reverse(mset) | expire])
+    ["OK" | _] = Command.pipeline!(cache, [Enum.reverse(mset) | expire], hash_slot_key)
     :ok
   end
 
   @impl true
   def delete(cache, key, _opts) do
-    _ = Command.exec!(cache, ["DEL", encode(key)])
+    redis_k = encode(key)
+    _ = Command.exec!(cache, ["DEL", redis_k], redis_k)
     :ok
   end
 
@@ -254,7 +297,9 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def has_key?(cache, key) do
-    case Command.exec!(cache, ["EXISTS", encode(key)]) do
+    redis_k = encode(key)
+
+    case Command.exec!(cache, ["EXISTS", redis_k], redis_k) do
       1 -> true
       0 -> false
     end
@@ -262,7 +307,9 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def object_info(cache, key, :ttl) do
-    case Command.exec!(cache, ["TTL", encode(key)]) do
+    redis_k = encode(key)
+
+    case Command.exec!(cache, ["TTL", redis_k], redis_k) do
       -1 -> :infinity
       -2 -> nil
       ttl -> ttl
@@ -278,16 +325,18 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def expire(cache, key, :infinity) do
-    key = encode(key)
+    redis_k = encode(key)
 
-    case Command.pipeline!(cache, [["TTL", key], ["PERSIST", key]]) do
+    case Command.pipeline!(cache, [["TTL", redis_k], ["PERSIST", redis_k]], redis_k) do
       [-2, 0] -> nil
       [_, _] -> :infinity
     end
   end
 
   def expire(cache, key, ttl) do
-    case Command.exec!(cache, ["EXPIRE", encode(key), ttl]) do
+    redis_k = encode(key)
+
+    case Command.exec!(cache, ["EXPIRE", redis_k, ttl], redis_k) do
       1 -> Object.expire_at(ttl) || :infinity
       0 -> nil
     end
@@ -295,17 +344,27 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def update_counter(cache, key, incr, _opts) when is_integer(incr) do
-    Command.exec!(cache, ["INCRBY", encode(key), incr])
+    redis_k = encode(key)
+    Command.exec!(cache, ["INCRBY", redis_k, incr], redis_k)
   end
 
   @impl true
   def size(cache) do
-    Command.exec!(cache, ["DBSIZE"])
+    if cache.cluster_enabled? do
+      Cluster.exec!(cache, ["DBSIZE"], &Kernel.+(&2, &1), 0)
+    else
+      Command.exec!(cache, ["DBSIZE"])
+    end
   end
 
   @impl true
   def flush(cache) do
-    _ = Command.exec!(cache, ["FLUSHALL"])
+    if cache.cluster_enabled? do
+      Cluster.exec!(cache, ["FLUSHALL"])
+    else
+      Command.exec!(cache, ["FLUSHALL"])
+    end
+
     :ok
   end
 
@@ -341,7 +400,9 @@ defmodule NebulexRedisAdapter do
   ## Private Functions
 
   defp with_ttl(:object, cache, key, pipeline) do
-    case Command.pipeline!(cache, [["TTL", encode(key)] | pipeline]) do
+    redis_k = encode(key)
+
+    case Command.pipeline!(cache, [["TTL", redis_k] | pipeline], redis_k) do
       [-2 | _] ->
         nil
 
@@ -353,8 +414,10 @@ defmodule NebulexRedisAdapter do
   end
 
   defp with_ttl(_, cache, key, pipeline) do
+    redis_k = encode(key)
+
     cache
-    |> Command.pipeline!(pipeline)
+    |> Command.pipeline!(pipeline, redis_k)
     |> hd()
     |> decode()
     |> object(key, -1)
@@ -410,5 +473,27 @@ defmodule NebulexRedisAdapter do
 
   defp execute_query(pattern, cache) do
     Command.exec!(cache, ["KEYS", pattern])
+  end
+
+  defp hash_slot_key(enum) do
+    enum
+    |> Enum.at(0)
+    |> case do
+      %Object{} = obj -> obj.key
+      key -> key
+    end
+    |> encode()
+  end
+
+  defp group_keys_by_hash_slot(enum, cache) do
+    Enum.reduce(enum, %{}, fn
+      %Object{key: key} = object, acc ->
+        slot = key |> encode() |> cache.keyslot()
+        Map.put(acc, slot, [object | Map.get(acc, slot, [])])
+
+      key, acc ->
+        slot = key |> encode() |> cache.keyslot()
+        Map.put(acc, slot, [key | Map.get(acc, slot, [])])
+    end)
   end
 end
