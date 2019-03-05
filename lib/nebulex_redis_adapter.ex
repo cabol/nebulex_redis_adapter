@@ -472,7 +472,11 @@ defmodule NebulexRedisAdapter do
   end
 
   defp execute_query(pattern, cache) do
-    Command.exec!(cache, ["KEYS", pattern])
+    if cache.cluster_enabled? do
+      Cluster.exec!(cache, ["KEYS", pattern], &Kernel.++(&1, &2), [])
+    else
+      Command.exec!(cache, ["KEYS", pattern])
+    end
   end
 
   defp hash_slot_key(enum) do
