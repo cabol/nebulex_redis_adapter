@@ -2,17 +2,18 @@ defmodule NebulexRedisAdapterTest do
   use ExUnit.Case, async: true
   use NebulexRedisAdapter.CacheTest, cache: NebulexRedisAdapter.TestCache.Standalone
 
+  alias NebulexRedisAdapter.Command
   alias NebulexRedisAdapter.TestCache.Standalone, as: Cache
   alias NebulexRedisAdapter.TestCache.StandaloneWithURL
 
   setup do
-    {:ok, local} = Cache.start_link()
+    {:ok, pid} = Cache.start_link()
     Cache.flush()
     :ok
 
     on_exit(fn ->
       _ = :timer.sleep(100)
-      if Process.alive?(local), do: Cache.stop(local)
+      if Process.alive?(pid), do: Cache.stop(pid)
     end)
   end
 
@@ -27,8 +28,14 @@ defmodule NebulexRedisAdapterTest do
   end
 
   test "connection with URL" do
-    {:ok, local} = StandaloneWithURL.start_link()
-    if Process.alive?(local), do: StandaloneWithURL.stop(local)
+    {:ok, pid} = StandaloneWithURL.start_link()
+    if Process.alive?(pid), do: StandaloneWithURL.stop(pid)
+  end
+
+  test "command error" do
+    assert_raise Redix.Error, fn ->
+      Command.exec!(Cache, ["INCRBY", "counter", "invalid"])
+    end
   end
 
   test "all" do

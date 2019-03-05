@@ -51,3 +51,22 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.ClusteredConnError,
       ]
     ]
   ]
+
+# Redis test clustered cache
+config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.ClusteredWithCustomHashSlot,
+  cluster: [
+    hash_slot: NebulexRedisAdapter.TestCache.HashSlotGen,
+    global_host: "127.0.0.1",
+    master_nodes: [
+      [
+        url: "redis://127.0.0.1:7000"
+      ],
+      [
+        url: "redis://127.0.0.1:7001"
+      ],
+      [
+        host: "127.0.0.1",
+        port: 7002
+      ]
+    ]
+  ]

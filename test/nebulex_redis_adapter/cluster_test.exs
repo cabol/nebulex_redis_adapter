@@ -4,14 +4,15 @@ defmodule NebulexRedisAdapterTest.ClusterTest do
 
   alias NebulexRedisAdapter.TestCache.Clustered, as: Cache
   alias NebulexRedisAdapter.TestCache.ClusteredConnError
+  alias NebulexRedisAdapter.TestCache.ClusteredWithCustomHashSlot
 
   setup do
-    {:ok, local} = Cache.start_link()
+    {:ok, pid} = Cache.start_link()
     Cache.flush()
 
     on_exit(fn ->
       _ = :timer.sleep(100)
-      if Process.alive?(local), do: Cache.stop(local)
+      if Process.alive?(pid), do: Cache.stop(pid)
     end)
   end
 
@@ -30,5 +31,16 @@ defmodule NebulexRedisAdapterTest.ClusterTest do
   test "set and get with hash tags" do
     assert :ok == Cache.set_many(%{"{foo}.1" => "bar1", "{foo}.2" => "bar2"})
     assert %{"{foo}.1" => "bar1", "{foo}.2" => "bar2"} == Cache.get_many(["{foo}.1", "{foo}.2"])
+  end
+
+  test "moved error" do
+    assert {:ok, pid} = ClusteredWithCustomHashSlot.start_link()
+    assert Process.alive?(pid)
+
+    assert_raise Redix.Error, fn ->
+      "bar" == ClusteredWithCustomHashSlot.set("1234567890", "hello")
+    end
+
+    refute Process.alive?(pid)
   end
 end

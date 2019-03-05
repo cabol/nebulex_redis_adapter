@@ -136,7 +136,7 @@ defmodule NebulexRedisAdapter do
     config = Module.get_attribute(env.module, :config)
     pool_size = Keyword.get(config, :pool_size, @default_pool_size)
     cluster_config = Keyword.get(config, :cluster)
-    hash_slot = Keyword.get(config, :hash_slot, __MODULE__)
+    hash_slot = Keyword.get(cluster_config || [], :hash_slot, __MODULE__)
 
     if is_nil(cluster_config) and is_nil(Keyword.get(config, :redix_opts)) do
       raise ArgumentError,

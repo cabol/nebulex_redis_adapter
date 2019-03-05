@@ -3,6 +3,7 @@ defmodule NebulexRedisAdapter.Cluster do
   @moduledoc false
 
   alias NebulexRedisAdapter.Cluster.SlotSupervisor
+  alias NebulexRedisAdapter.Command
 
   ## API
 
@@ -55,9 +56,10 @@ defmodule NebulexRedisAdapter.Cluster do
     |> cluster_slots_tab()
     |> :ets.lookup(cache)
     |> Enum.reduce(init_acc, fn {_, _start, _stop, name}, acc ->
-      index = Enum.random(0..(cache.__pool_size__ - 1))
-      result = Redix.command!(:"#{name}_redix_#{index}", command)
-      reducer.(result, acc)
+      cache
+      |> Command.get_conn(name)
+      |> Redix.command!(command)
+      |> reducer.(acc)
     end)
   end
 
@@ -82,7 +84,7 @@ defmodule NebulexRedisAdapter.Cluster do
       else
         {:error, reason} ->
           if acc >= length(master_nodes) do
-            raise(reason)
+            raise reason
           else
             {:cont, acc + 1}
           end
