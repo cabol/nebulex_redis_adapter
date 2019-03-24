@@ -1,7 +1,7 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "1.1.0-dev"
 
   def project do
     [
@@ -47,6 +47,7 @@ defmodule NebulexRedisAdapter.MixProject do
       # the test folder. Hence, to run the tests it is necessary to fetch
       # nebulex dependency directly from GH.
       {:nebulex, nebulex_opts()},
+      {:crc, "~> 0.9"},
 
       # Test
       {:excoveralls, "~> 0.6", only: :test},
@@ -65,7 +66,7 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp nebulex_opts do
     if System.get_env("NBX_TEST") do
-      [github: "cabol/nebulex", tag: "v1.0.0"]
+      [github: "cabol/nebulex", branch: "master"]
     else
       "~> 1.0"
     end

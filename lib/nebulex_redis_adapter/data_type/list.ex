@@ -1,4 +1,4 @@
-defmodule NebulexRedisAdapter.List do
+defmodule NebulexRedisAdapter.DataType.List do
   @moduledoc """
   Lists API.
 
