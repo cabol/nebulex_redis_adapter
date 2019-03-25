@@ -2,7 +2,8 @@ defmodule NebulexRedisAdapter.Command do
   # Redix command executor
   @moduledoc false
 
-  alias NebulexRedisAdapter.{Cluster, RedisCluster}
+  alias NebulexCluster.Pool
+  alias NebulexRedisAdapter.RedisCluster
 
   @spec exec!(Nebulex.Cache.t(), Redix.command(), Nebulex.Cache.key()) :: any | no_return
   def exec!(cache, command, key \\ nil) do
@@ -38,24 +39,25 @@ defmodule NebulexRedisAdapter.Command do
     raise reason
   end
 
-  # @spec get_conn(Nebulex.Cache.t(), atom) :: atom
-  # def get_conn(cache, name \\ nil) do
-  #   prefix = name || cache
-  #   index = rem(System.unique_integer([:positive]), cache.__pool_size__)
-  #   :"#{prefix}_redix_#{index}"
-  # end
-
   ## Private Functions
 
   defp conn(cache, key) do
-    conn(cache, key, cache.cluster_enabled?)
+    conn(cache, key, cache.__mode__)
   end
 
-  defp conn(cache, key, false) do
-    Cluster.get_conn(cache, key)
+  defp conn(cache, _key, :standalone) do
+    Pool.get_conn(cache, cache.__pool_size__)
   end
 
-  defp conn(cache, key, true) do
+  defp conn(cache, {:"$hash_slot", node_name}, :cluster) do
+    NebulexCluster.get_conn(cache, cache.__nodes__, node_name)
+  end
+
+  defp conn(cache, key, :cluster) do
+    NebulexCluster.get_conn(cache, cache.__nodes__, key, cache.__hash_slot__)
+  end
+
+  defp conn(cache, key, :redis_cluster) do
     RedisCluster.get_conn(cache, key)
   end
 end

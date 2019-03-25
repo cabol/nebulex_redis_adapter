@@ -1,6 +1,6 @@
-defmodule NebulexRedisAdapter.RedisCluster.SlotSupervisor do
+defmodule NebulexRedisAdapter.RedisCluster.NodeSupervisor do
   @moduledoc """
-  Redis Cluster Slot Supervisor.
+  Redis Cluster Node/Slot Supervisor.
   """
 
   use Supervisor
@@ -23,14 +23,14 @@ defmodule NebulexRedisAdapter.RedisCluster.SlotSupervisor do
 
     conn_opts =
       opts
-      |> Keyword.get(:redix_opts, [])
+      |> Keyword.get(:conn_opts, [])
       |> Keyword.delete(:url)
       |> Keyword.put(:host, Keyword.get(cluster, :global_host) || host)
       |> Keyword.put(:port, port)
 
     children =
       for i <- 0..(pool_size - 1) do
-        conn_opts = Keyword.put(conn_opts, :name, :"#{name}_redix_#{i}")
+        conn_opts = Keyword.put(conn_opts, :name, :"#{name}.#{i}")
         Supervisor.child_spec({Redix, conn_opts}, id: {Redix, i})
       end
 

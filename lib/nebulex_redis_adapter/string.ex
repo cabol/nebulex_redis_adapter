@@ -1,4 +1,4 @@
-defmodule NebulexRedisAdapter.Key do
+defmodule NebulexRedisAdapter.String do
   @moduledoc false
 
   @spec encode(term) :: binary
@@ -8,7 +8,7 @@ defmodule NebulexRedisAdapter.Key do
     _e -> :erlang.term_to_binary(data)
   end
 
-  @spec encode(binary | nil) :: term
+  @spec decode(binary | nil) :: term
   def decode(nil), do: nil
 
   def decode(data) do

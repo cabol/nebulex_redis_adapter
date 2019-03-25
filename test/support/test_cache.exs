@@ -5,36 +5,36 @@ defmodule NebulexRedisAdapter.TestCache do
       adapter: NebulexRedisAdapter
   end
 
-  defmodule StandaloneWithURL do
+  defmodule Cluster do
     use Nebulex.Cache,
       otp_app: :nebulex_redis_adapter,
       adapter: NebulexRedisAdapter
   end
 
-  defmodule Clustered do
+  defmodule RedisCluster do
     use Nebulex.Cache,
       otp_app: :nebulex_redis_adapter,
       adapter: NebulexRedisAdapter
   end
 
-  defmodule ClusteredConnError do
+  defmodule RedisClusterConnError do
     use Nebulex.Cache,
       otp_app: :nebulex_redis_adapter,
       adapter: NebulexRedisAdapter
   end
 
-  defmodule ClusteredWithCustomHashSlot do
+  defmodule RedisClusterWithCustomHashSlot do
     use Nebulex.Cache,
       otp_app: :nebulex_redis_adapter,
       adapter: NebulexRedisAdapter
   end
 
-  defmodule HashSlotGen do
-    @behaviour NebulexRedisAdapter.Cluster.HashSlot
+  defmodule HashSlot do
+    @behaviour Nebulex.Adapter.HashSlot
 
     @impl true
-    def compute(key) do
-      :erlang.phash(key, 16_384)
+    def keyslot(key, range \\ 16_384) do
+      :erlang.phash2(key, range)
     end
   end
 end

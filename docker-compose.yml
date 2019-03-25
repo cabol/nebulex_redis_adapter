@@ -1,6 +1,11 @@
 version: '3'
 
 services:
+  redis-standalone:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+
   redis-standalone1:
     image: "redis:alpine"
     ports:
