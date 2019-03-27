@@ -26,12 +26,17 @@ defmodule NebulexRedisAdapter.Connection do
     }
   end
 
+  @spec conn_opts(Keyword.t()) :: Keyword.t()
+  def conn_opts(opts) do
+    Keyword.get(opts, :conn_opts, host: "127.0.0.1", port: 6379)
+  end
+
   ## Private Functions
 
   defp redix_args(name, opts) do
     conn_opts =
       opts
-      |> Keyword.get(:conn_opts, host: "127.0.0.1", port: 6379)
+      |> conn_opts()
       |> Keyword.put(:name, name)
 
     case Keyword.pop(conn_opts, :url) do

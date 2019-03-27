@@ -23,7 +23,7 @@ defmodule NebulexRedisAdapter.TestCache do
       adapter: NebulexRedisAdapter
   end
 
-  defmodule RedisClusterWithCustomHashSlot do
+  defmodule RedisClusterWithHashSlot do
     use Nebulex.Cache,
       otp_app: :nebulex_redis_adapter,
       adapter: NebulexRedisAdapter

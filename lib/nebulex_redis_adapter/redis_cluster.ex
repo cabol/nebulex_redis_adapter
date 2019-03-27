@@ -7,6 +7,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
   import NebulexRedisAdapter.String
 
   alias NebulexCluster.Pool
+  alias NebulexRedisAdapter.Connection
   alias NebulexRedisAdapter.RedisCluster.NodeSupervisor
 
   @redis_cluster_hash_slots 16_384
@@ -15,14 +16,13 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
   @spec init(Keyword.t()) :: {:ok, [Supervisor.child_spec()]}
   def init(opts) do
-    # get cache and cluster config
+    # get cache
     cache = Keyword.fetch!(opts, :cache)
-    cluster_config = Keyword.fetch!(opts, :cluster)
 
     # create a connection and retrieve cluster slots map
     cluster_slots =
-      cluster_config
-      |> Keyword.fetch!(:master_nodes)
+      opts
+      |> get_master_nodes()
       |> get_cluster_slots()
 
     # init ETS table to store cluster slots
@@ -151,6 +151,10 @@ defmodule NebulexRedisAdapter.RedisCluster do
     ])
   end
 
+  defp get_master_nodes(opts) do
+    Keyword.get(opts, :master_nodes, [Connection.conn_opts(opts)])
+  end
+
   defp get_cluster_slots(master_nodes) do
     Enum.reduce_while(master_nodes, 1, fn conn_opts, acc ->
       with {:ok, conn} <- connect(conn_opts),
@@ -159,7 +163,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
       else
         {:error, reason} ->
           if acc >= length(master_nodes) do
-            raise reason
+            exit(reason)
           else
             {:cont, acc + 1}
           end

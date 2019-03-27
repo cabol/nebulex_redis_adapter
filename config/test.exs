@@ -11,8 +11,8 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Standalone,
 
 # Redis test cache
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
-  mode: :cluster,
   version_generator: Nebulex.Version.Timestamp,
+  mode: :cluster,
   connection_module: NebulexRedisAdapter.Connection,
   nodes: [
     node1: [
@@ -37,60 +37,48 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
 
 # Redis test clustered cache
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisCluster,
-  mode: :redis_cluster,
   version_generator: Nebulex.Version.Timestamp,
-  cluster: [
-    global_host: "127.0.0.1",
-    master_nodes: [
-      [
-        url: "redis://127.0.0.1:7000"
-      ],
-      [
-        url: "redis://127.0.0.1:7001"
-      ],
-      [
-        host: "127.0.0.1",
-        port: 7002
-      ]
+  mode: :redis_cluster,
+  master_nodes: [
+    [
+      host: "127.0.0.1",
+      port: 7000
+    ],
+    [
+      url: "redis://127.0.0.1:7001"
+    ],
+    [
+      url: "redis://127.0.0.1:7002"
     ]
+  ],
+  conn_opts: [
+    host: "127.0.0.1"
   ]
 
 # Redis test clustered cache
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterConnError,
   mode: :redis_cluster,
-  cluster: [
-    global_host: "127.0.0.1",
-    master_nodes: [
-      [
-        url: "redis://127.0.0.1:9000"
-      ],
-      [
-        url: "redis://127.0.0.1:9001"
-      ],
-      [
-        host: "127.0.0.1",
-        port: 8080
-      ]
+  pool_size: 2,
+  master_nodes: [
+    [
+      host: "127.0.0.1",
+      port: 10100
     ]
+  ],
+  conn_opts: [
+    host: "127.0.0.1"
   ]
 
 # Redis test clustered cache
-config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterWithCustomHashSlot,
+config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterWithHashSlot,
   mode: :redis_cluster,
   hash_slot: NebulexRedisAdapter.TestCache.HashSlot,
-  cluster: [
-    hash_slot: NebulexRedisAdapter.TestCache.HashSlotGen,
-    global_host: "127.0.0.1",
-    master_nodes: [
-      [
-        url: "redis://127.0.0.1:7000"
-      ],
-      [
-        url: "redis://127.0.0.1:7001"
-      ],
-      [
-        host: "127.0.0.1",
-        port: 7002
-      ]
+  pool_size: 2,
+  master_nodes: [
+    [
+      url: "redis://127.0.0.1:7000"
     ]
+  ],
+  conn_opts: [
+    host: "127.0.0.1"
   ]

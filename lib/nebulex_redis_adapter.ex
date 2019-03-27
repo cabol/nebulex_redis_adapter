@@ -2,7 +2,7 @@ defmodule NebulexRedisAdapter do
   @moduledoc """
   Nebulex adapter for Redis.
 
-  This adapter is implemented by means of `Redix`, a Redis driver for
+  This adapter is implemented using `Redix`, a Redis driver for
   Elixir.
 
   This adapter supports multiple connection pools against different Redis
@@ -140,6 +140,12 @@ defmodule NebulexRedisAdapter do
       for {node_name, node_opts} <- Keyword.get(config, :nodes, []) do
         {node_name, Keyword.get(node_opts, :pool_size, @default_pool_size)}
       end
+
+    # if mode == :redis_cluster and is_nil(Keyword.get(config, :master_nodes)) do
+    #   raise ArgumentError,
+    #           "missing :master_nodes configuration in " <>
+    #             "config #{inspect(otp_app)}, #{inspect(env.module)}"
+    # end
 
     quote do
       def __mode__, do: unquote(mode)

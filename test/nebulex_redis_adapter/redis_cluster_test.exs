@@ -4,7 +4,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
 
   alias NebulexRedisAdapter.RedisCluster
   alias NebulexRedisAdapter.TestCache.RedisCluster, as: Cache
-  alias NebulexRedisAdapter.TestCache.{RedisClusterConnError, RedisClusterWithCustomHashSlot}
+  alias NebulexRedisAdapter.TestCache.{RedisClusterConnError, RedisClusterWithHashSlot}
 
   setup do
     {:ok, pid} = Cache.start_link()
@@ -17,8 +17,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
   end
 
   test "connection error" do
-    assert {:error, {%Redix.ConnectionError{reason: :closed}, _}} =
-             RedisClusterConnError.start_link()
+    assert {:error, %Redix.ConnectionError{reason: :closed}} = RedisClusterConnError.start_link()
   end
 
   test "hash tags on keys" do
@@ -39,11 +38,11 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
   end
 
   test "moved error" do
-    assert {:ok, pid} = RedisClusterWithCustomHashSlot.start_link()
+    assert {:ok, pid} = RedisClusterWithHashSlot.start_link()
     assert Process.alive?(pid)
 
     assert_raise Redix.Error, fn ->
-      "bar" == RedisClusterWithCustomHashSlot.set("1234567890", "hello")
+      "bar" == RedisClusterWithHashSlot.set("1234567890", "hello")
     end
 
     refute Process.alive?(pid)

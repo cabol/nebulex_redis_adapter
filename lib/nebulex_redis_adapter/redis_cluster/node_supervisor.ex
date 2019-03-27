@@ -17,7 +17,6 @@ defmodule NebulexRedisAdapter.RedisCluster.NodeSupervisor do
 
   @impl true
   def init({name, opts}) do
-    cluster = Keyword.fetch!(opts, :cluster)
     pool_size = Keyword.fetch!(opts, :pool_size)
     [[host, port, _id] = _master | _replicas] = Keyword.fetch!(opts, :nodes)
 
@@ -25,8 +24,9 @@ defmodule NebulexRedisAdapter.RedisCluster.NodeSupervisor do
       opts
       |> Keyword.get(:conn_opts, [])
       |> Keyword.delete(:url)
-      |> Keyword.put(:host, Keyword.get(cluster, :global_host) || host)
+      |> Keyword.put(:host, host)
       |> Keyword.put(:port, port)
+      |> Keyword.merge(Keyword.get(opts, :conn_opts, []))
 
     children =
       for i <- 0..(pool_size - 1) do
