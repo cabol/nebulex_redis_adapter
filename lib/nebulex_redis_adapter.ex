@@ -5,49 +5,39 @@ defmodule NebulexRedisAdapter do
   This adapter is implemented using `Redix`, a Redis driver for
   Elixir.
 
-  This adapter supports multiple connection pools against different Redis
-  nodes in a cluster. This feature enables resiliency, be able to survive
-  in case any node(s) gets unreachable.
+  **NebulexRedisAdapter** brings with three setup alternatives: standalone
+  (default) and two more for cluster support:
 
-  ## Adapter Options
+    * **Standalone** - This is the default mode, the adapter establishes a pool
+      of connections against a single Redis node.
+
+    * **Redis Cluster** - Redis can be setup in distributed fashion by means of
+      **Redis Cluster**, which is a built-in feature since version 3.0
+      (or greater). This adapter provides the `:redis_cluster` mode to setup
+      **Redis Cluster** from client-side automatically and be able to use it
+      transparently.
+
+    * **Built-in client-side cluster based on sharding** - This adapter provides
+      a simple client-side cluster implementation based on Sharding as
+      distribution model and consistent hashing for node resolution.
+
+  ## Shared Options
 
   In addition to `Nebulex.Cache` shared options, this adapters supports the
   following options:
 
-    * `:pools` - The list of connection pools for Redis. Each element (pool)
-      holds the same options as `Redix` (including connection options), and
-      the `:pool_size` (number of connections to keep in the pool).
+    * `:mode` - Defines the mode Redis will be set up. It can be one of the
+      next values: `:standalone | :cluster | :redis_cluster`. Defaults to
+      `:standalone`.
 
-  ## Redix Options (for each pool)
+    * `:pool_size` - number of connections to keep in the pool.
+      Defaults to `System.schedulers_online()`.
 
-  Since this adapter is implemented by means of `Redix`, it inherits the same
-  options (including connection options). These are some of the main ones:
+    * `:conn_opts` - Redis client options (`Redix` options in this case).
+      For more information about the options (Redis and connection options),
+      please check out `Redix` docs.
 
-    * `:host` - (string) the host where the Redis server is running. Defaults to
-      `"localhost"`.
-
-    * `:port` - (positive integer) the port on which the Redis server is
-      running. Defaults to `6379`.
-
-    * `:password` - (string) the password used to connect to Redis. Defaults to
-      `nil`, meaning no password is used. When this option is provided, all
-       Redix does is issue an `AUTH` command to Redis in order to authenticate.
-
-    * `:database` - (non-negative integer or string) the database to connect to.
-      Defaults to `nil`, meaning Redix doesn't connect to a specific database
-      (the default in this case is database `0`). When this option is provided,
-      all Redix does is issue a `SELECT` command to Redis in order to select the
-      given database.
-
-  For more information about the options (Redis and connection options), please
-  checkout `Redix` docs.
-
-  In addition to `Redix` options, it supports:
-
-    * `:pool_size` - The number of connections to keep in the pool
-      (default: `System.schedulers_online()`).
-
-  ## Example
+  ## Standalone Example
 
   We can define our cache to use Redis adapter as follows:
 
@@ -61,14 +51,91 @@ defmodule NebulexRedisAdapter do
   usually defined in your `config/config.exs`:
 
       config :my_app, MyApp.RedisCache,
-        pools: [
-          primary: [
+        conn_opts: [
+          host: "127.0.0.1",
+          port: 6379
+        ]
+
+  ## Redis Cluster Options
+
+  In addition to shared options, `:redis_cluster` mode supports the following
+  options:
+
+    * `:master_nodes` - The list with the configuration for the Redis cluster
+      master nodes. The configuration for each master nodes contains the same
+      options as `:conn_opts`. The adapter traverses the list trying to
+      establish connection at least with one of them and get the cluster slots
+      to finally setup the Redis cluster from client side properly. If one
+      fails, the adapter retries with the next in the list, that's why at least
+      one master node must be set.
+
+    * `:conn_opts` - Same as shared options (optional). The `:conn_opts` will
+      be applied to each connection pool with the cluster (they will override
+      the host and port retrieved from cluster slots info). For that reason,
+      be careful when setting `:host` or `:port` options since they will be
+      used globally and can cause connection issues. Normally, we add here
+      the desired client options except `:host` and `:port`. If you have a
+      cluster with the same host for all nodes, in that case make sense to
+      add also the `:host` option.
+
+    * `:pool_size` - Same as shared options (optional). It applies to all
+      cluster slots, meaning all connection pools will have the same size.
+
+  ## Redis Cluster Example
+
+      config :my_app, MayApp.RedisClusterCache,
+        mode: :redis_cluster,
+        master_nodes: [
+          [
             host: "127.0.0.1",
-            port: 6379
+            port: 7000
           ],
-          secondary: [
-            url: "redis://10.10.10.10:6379",
-            pool_size: 2
+          [
+            url: "redis://127.0.0.1:7001"
+          ],
+          [
+            url: "redis://127.0.0.1:7002"
+          ]
+        ],
+        conn_opts: [
+          # Redix options, except `:host` and `:port`; unless we have a cluster
+          # of nodes with the same host and/or port, which doesn't make sense.
+        ]
+
+  ## Client-side Cluster Options
+
+  In addition to shared options, `:cluster` mode supports the following
+  options:
+
+    * `:nodes` - The list of nodes the adapter will setup the cluster with;
+      a pool of connections is established per node. The `:cluster` mode
+      enables resilience, be able to survive in case any node(s) gets
+      unreachable. For each element of the list, we set the configuration
+      for each node, such as `:conn_opts`, `:pool_size`, etc.
+
+  ## Clustered Cache Example
+
+      config :my_app, MayApp.ClusteredCache,
+        mode: :cluster,
+        nodes: [
+          node1: [
+            pool_size: 10,
+            conn_opts: [
+              host: "127.0.0.1",
+              port: 9001
+            ]
+          ],
+          node2: [
+            pool_size: 4,
+            conn_opts: [
+              url: "redis://127.0.0.1:9002"
+            ]
+          ],
+          node3: [
+            conn_opts: [
+              host: "127.0.0.1",
+              port: 9003
+            ]
           ]
         ]
 
@@ -141,12 +208,6 @@ defmodule NebulexRedisAdapter do
         {node_name, Keyword.get(node_opts, :pool_size, @default_pool_size)}
       end
 
-    # if mode == :redis_cluster and is_nil(Keyword.get(config, :master_nodes)) do
-    #   raise ArgumentError,
-    #           "missing :master_nodes configuration in " <>
-    #             "config #{inspect(otp_app)}, #{inspect(env.module)}"
-    # end
-
     quote do
       def __mode__, do: unquote(mode)
 
@@ -172,9 +233,14 @@ defmodule NebulexRedisAdapter do
     cache = Keyword.fetch!(opts, :cache)
 
     case cache.__mode__ do
-      :standalone -> Connection.init(opts)
-      :cluster -> NebulexCluster.init(opts)
-      :redis_cluster -> RedisCluster.init(opts)
+      :standalone ->
+        Connection.init(opts)
+
+      :cluster ->
+        NebulexCluster.init([connection_module: NebulexRedisAdapter.Connection] ++ opts)
+
+      :redis_cluster ->
+        RedisCluster.init(opts)
     end
   end
 

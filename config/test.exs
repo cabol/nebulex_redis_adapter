@@ -3,7 +3,6 @@ use Mix.Config
 # Redis Standalone
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Standalone,
   version_generator: Nebulex.Version.Timestamp,
-  connection_module: NebulexRedisAdapter.Connection,
   conn_opts: [
     host: "127.0.0.1",
     port: 6379
@@ -13,7 +12,6 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Standalone,
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
   version_generator: Nebulex.Version.Timestamp,
   mode: :cluster,
-  connection_module: NebulexRedisAdapter.Connection,
   nodes: [
     node1: [
       conn_opts: [
