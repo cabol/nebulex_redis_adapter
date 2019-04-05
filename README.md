@@ -9,9 +9,13 @@
 This adapter is implemented using [Redix](https://github.com/whatyouhide/redix),
 a Redis driver for Elixir.
 
-This adapter supports multiple connection pools against different Redis nodes
-in a cluster. This feature enables resiliency and also be able to survive
-in case any node(s) gets unreachable.
+The adapter supports different configurations modes which are explained in the
+next sections.
+
+Ypu can also check the [online documentation][nebulex_redis_adapter] to learn
+more about it.
+
+[nebulex_redis_adapter]: http://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html
 
 ## Installation
 
@@ -44,13 +48,10 @@ defined in your `config/config.exs`:
 
 ```elixir
 config :my_app, MyApp.RedisCache,
-  pools: [
-    primary: [
-      host: "127.0.0.1",
-      port: 6379,
-      pool_size: 10
-    ],
-    #=> maybe more pools
+  conn_opts: [
+    # Redix options
+    host: "127.0.0.1",
+    port: 6379
   ]
 ```
 
@@ -61,21 +62,120 @@ module and also [Redix](https://github.com/whatyouhide/redix).
 
 ## Distributed Caching
 
-There are different ways to support distributed caching using
-`NebulexRedisAdapter`.
+There are different ways to support distributed caching when using
+**NebulexRedisAdapter**.
 
-> The good news is Redis is distributed as well, it is a built-in feature since
-  version 3.0 (or greater) via [Redis Cluster](https://redis.io/topics/cluster-tutorial).
+> To learn more about the available config options for the different cluster
+  alternatives below, check out the [online documentation][nebulex_redis_adapter].
 
-### Using Redis Cluster
+### Redis Cluster
 
-By setting up [Redis Cluster](https://redis.io/topics/cluster-tutorial), all
-distributed features and distribution work is automatically provided by Redis
-Cluster under-the-hood. From the adapter's side, there is not additional work
-more than add to the config the nodes of the cluster you want to cannect to.
+Redis can be setup in distributed fashion by means of [Redis Cluster][redis_cluster],
+which is a built-in feature since version 3.0 (or greater). The adapter provides
+the `:redis_cluster` mode to setup **Redis Cluster** from client-side
+automatically and be able to use it transparently.
+
+[redis_cluster]: https://redis.io/topics/cluster-tutorial
+
+First of all, ensure you have **Redis Cluster** configured and running.
+
+Then we can define our cache which will use **Redis Cluster**:
+
+```elixir
+defmodule MyApp.RedisClusterCache do
+  use Nebulex.Cache,
+    otp_app: :nebulex,
+    adapter: NebulexRedisAdapter
+end
+```
+
+The config:
+
+```elixir
+config :my_app, MayApp.RedisClusterCache,
+  # Enable redis_cluster mode
+  mode: :redis_cluster,
+
+  # Master nodes. There must be at least one, in order the adapter be able to
+  # get the cluster slots and configure the client side automatically.
+  # If one fails, the adapter retries with the next in the list.
+  master_nodes: [
+    [
+      host: "127.0.0.1",
+      port: 7000
+    ],
+    [
+      url: "redis://127.0.0.1:7001"
+    ],
+    # Maybe more master nodes ...
+  ],
+
+  # Redix options, except `:host` and `:port`; unless we have a cluster
+  # of nodes with the same host and/or port, which doesn't make sense.
+  conn_opts: [
+    # Maybe Redix options
+  ]
+```
+
+The pool of connections against the different master nodes is automatically
+configured by the adapter once it gets the cluster slots info.
 
 > This one could be the easiest and recommended way for distributed caching
-  using Redis and `NebulexRedisAdapter`.
+  using Redis and **NebulexRedisAdapter**.
+
+### Client-side Cluster based on Sharding (and consistent hashing)
+
+**NebulexRedisAdapter** also brings with a simple client-side cluster
+implementation based on Sharding as distribution model and consistent
+hashing for node resolution.
+
+We define our cache normally:
+
+```elixir
+defmodule MyApp.ClusteredCache do
+  use Nebulex.Cache,
+    otp_app: :nebulex,
+    adapter: NebulexRedisAdapter
+end
+```
+
+And then, within the config:
+
+```elixir
+config :my_app, MayApp.ClusteredCache,
+  # Enable client-side cluster mode
+  mode: :cluster,
+
+  # Nodes config (each node has its own options)
+  nodes: [
+    node1: [
+      # Node poll size
+      pool_size: 10,
+
+      # Redix options to establish the pool of connections against this node
+      conn_opts: [
+        host: "127.0.0.1",
+        port: 9001
+      ]
+    ],
+    node2: [
+      pool_size: 4,
+      conn_opts: [
+        url: "redis://127.0.0.1:9002"
+      ]
+    ],
+    node3: [
+      conn_opts: [
+        host: "127.0.0.1",
+        port: 9003
+      ]
+    ]
+    # Maybe more ...
+  ]
+```
+
+That's all, the rest of the work is done by **NebulexRedisAdapter**
+automatically.
 
 ### Using `Nebulex.Adapters.Dist`
 
@@ -107,18 +207,30 @@ end
 
 The other option is to use a proxy, like [twemproxy](https://github.com/twitter/twemproxy)
 on top of Redis. In this case, the proxy does the distribution work, and from
-the adparter's side (`NebulexRedisAdapter`), it would be only configuration.
+the adparter's side (**NebulexRedisAdapter**), it would be only configuration.
 Instead of connect the adapter against the Redis nodes, we connect it against
 the proxy nodes, this means, in the config, we just setup the pools with the
 host and port for each proxy.
 
 ## Testing
 
-First of all, ensure you have Redis up and running on **localhiost**
-and port **6379** (default host and port).
+To run the **NebulexRedisAdapter** tests you will have to have Redis running
+locally. **NebulexRedisAdapter** requires a complex setup for running tests
+(since it needs a few instances running, for standalone, cluster and Redis
+Cluster). For this reason, there is a [docker-compose.yml](docker-compose.yml)
+file in the repo so that you can use [Docker][docker] and
+[docker-compose][docker_compose] to spin up all the necessary Redis instances
+with just one command. Make sure you have Docker installed and then just run:
 
-Since `NebulexRedisAdapter` uses the support modules and shared tests from
-Nebulex and by default its `test` folder is not included within the `hex`
+```
+$ docker-compose up
+```
+
+[docker]: https://www.docker.com/
+[docker_compose]: https://docs.docker.com/compose/
+
+Since **NebulexRedisAdapter** uses the support modules and shared tests from
+**Nebulex** and by default its `test` folder is not included within the `hex`
 dependency, it is necessary to fetch `:nebulex` dependency directly from GtiHub.
 This is done by setting the environment variable `NBX_TEST`, like so:
 
@@ -156,6 +268,8 @@ To run the benchmarks:
 ```
 $ mix deps.get && mix run benchmarks/benchmark.exs
 ```
+
+> Benchmarks use default Redis options (`host: "127.0.0.1", port: 6379`).
 
 ## Contributing
 

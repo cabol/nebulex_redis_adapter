@@ -1,16 +1,5 @@
 ## Benchmarks
 
-Application.put_env(
-  :nebulex,
-  BenchCache,
-  pools: [
-    primary: [
-      host: "127.0.0.1",
-      port: 6379
-    ]
-  ]
-)
-
 defmodule BenchCache do
   use Nebulex.Cache,
       otp_app: :nebulex,

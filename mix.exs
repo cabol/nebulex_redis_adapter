@@ -1,7 +1,7 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "1.1.0-dev"
 
   def project do
     [
@@ -32,12 +32,6 @@ defmodule NebulexRedisAdapter.MixProject do
     ]
   end
 
-  def application do
-    [
-      extra_applications: []
-    ]
-  end
-
   defp deps do
     [
       {:redix, "~> 0.9"},
@@ -46,7 +40,10 @@ defmodule NebulexRedisAdapter.MixProject do
       # tests from nebulex dependency, and the hex dependency doesn't include
       # the test folder. Hence, to run the tests it is necessary to fetch
       # nebulex dependency directly from GH.
-      {:nebulex, nebulex_opts()},
+      # {:nebulex, nebulex_opts()},
+      {:nebulex_cluster, github: "cabol/nebulex_cluster"},
+      {:jchash, "~> 0.1", runtime: false},
+      {:crc, "~> 0.9"},
 
       # Test
       {:excoveralls, "~> 0.6", only: :test},
@@ -63,13 +60,13 @@ defmodule NebulexRedisAdapter.MixProject do
     ]
   end
 
-  defp nebulex_opts do
-    if System.get_env("NBX_TEST") do
-      [github: "cabol/nebulex", tag: "v1.0.0"]
-    else
-      "~> 1.0"
-    end
-  end
+  # defp nebulex_opts do
+  #   if System.get_env("NBX_TEST") do
+  #     [github: "cabol/nebulex", branch: "master"]
+  #   else
+  #     "~> 1.0"
+  #   end
+  # end
 
   defp package do
     [
@@ -91,7 +88,7 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:nebulex, :shards, :mix, :eex],
+      plt_add_apps: [:mix, :eex, :nebulex, :shards, :jchash],
       flags: [
         :unmatched_returns,
         :error_handling,

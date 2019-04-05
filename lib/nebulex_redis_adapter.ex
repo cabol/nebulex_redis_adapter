@@ -2,52 +2,42 @@ defmodule NebulexRedisAdapter do
   @moduledoc """
   Nebulex adapter for Redis.
 
-  This adapter is implemented by means of `Redix`, a Redis driver for
+  This adapter is implemented using `Redix`, a Redis driver for
   Elixir.
 
-  This adapter supports multiple connection pools against different Redis
-  nodes in a cluster. This feature enables resiliency, be able to survive
-  in case any node(s) gets unreachable.
+  **NebulexRedisAdapter** brings with three setup alternatives: standalone
+  (default) and two more for cluster support:
 
-  ## Adapter Options
+    * **Standalone** - This is the default mode, the adapter establishes a pool
+      of connections against a single Redis node.
+
+    * **Redis Cluster** - Redis can be setup in distributed fashion by means of
+      **Redis Cluster**, which is a built-in feature since version 3.0
+      (or greater). This adapter provides the `:redis_cluster` mode to setup
+      **Redis Cluster** from client-side automatically and be able to use it
+      transparently.
+
+    * **Built-in client-side cluster based on sharding** - This adapter provides
+      a simple client-side cluster implementation based on Sharding as
+      distribution model and consistent hashing for node resolution.
+
+  ## Shared Options
 
   In addition to `Nebulex.Cache` shared options, this adapters supports the
   following options:
 
-    * `:pools` - The list of connection pools for Redis. Each element (pool)
-      holds the same options as `Redix` (including connection options), and
-      the `:pool_size` (number of connections to keep in the pool).
+    * `:mode` - Defines the mode Redis will be set up. It can be one of the
+      next values: `:standalone | :cluster | :redis_cluster`. Defaults to
+      `:standalone`.
 
-  ## Redix Options (for each pool)
+    * `:pool_size` - number of connections to keep in the pool.
+      Defaults to `System.schedulers_online()`.
 
-  Since this adapter is implemented by means of `Redix`, it inherits the same
-  options (including connection options). These are some of the main ones:
+    * `:conn_opts` - Redis client options (`Redix` options in this case).
+      For more information about the options (Redis and connection options),
+      please check out `Redix` docs.
 
-    * `:host` - (string) the host where the Redis server is running. Defaults to
-      `"localhost"`.
-
-    * `:port` - (positive integer) the port on which the Redis server is
-      running. Defaults to `6379`.
-
-    * `:password` - (string) the password used to connect to Redis. Defaults to
-      `nil`, meaning no password is used. When this option is provided, all
-       Redix does is issue an `AUTH` command to Redis in order to authenticate.
-
-    * `:database` - (non-negative integer or string) the database to connect to.
-      Defaults to `nil`, meaning Redix doesn't connect to a specific database
-      (the default in this case is database `0`). When this option is provided,
-      all Redix does is issue a `SELECT` command to Redis in order to select the
-      given database.
-
-  For more information about the options (Redis and connection options), please
-  checkout `Redix` docs.
-
-  In addition to `Redix` options, it supports:
-
-    * `:pool_size` - The number of connections to keep in the pool
-      (default: `System.schedulers_online()`).
-
-  ## Example
+  ## Standalone Example
 
   We can define our cache to use Redis adapter as follows:
 
@@ -61,14 +51,91 @@ defmodule NebulexRedisAdapter do
   usually defined in your `config/config.exs`:
 
       config :my_app, MyApp.RedisCache,
-        pools: [
-          primary: [
+        conn_opts: [
+          host: "127.0.0.1",
+          port: 6379
+        ]
+
+  ## Redis Cluster Options
+
+  In addition to shared options, `:redis_cluster` mode supports the following
+  options:
+
+    * `:master_nodes` - The list with the configuration for the Redis cluster
+      master nodes. The configuration for each master nodes contains the same
+      options as `:conn_opts`. The adapter traverses the list trying to
+      establish connection at least with one of them and get the cluster slots
+      to finally setup the Redis cluster from client side properly. If one
+      fails, the adapter retries with the next in the list, that's why at least
+      one master node must be set.
+
+    * `:conn_opts` - Same as shared options (optional). The `:conn_opts` will
+      be applied to each connection pool with the cluster (they will override
+      the host and port retrieved from cluster slots info). For that reason,
+      be careful when setting `:host` or `:port` options since they will be
+      used globally and can cause connection issues. Normally, we add here
+      the desired client options except `:host` and `:port`. If you have a
+      cluster with the same host for all nodes, in that case make sense to
+      add also the `:host` option.
+
+    * `:pool_size` - Same as shared options (optional). It applies to all
+      cluster slots, meaning all connection pools will have the same size.
+
+  ## Redis Cluster Example
+
+      config :my_app, MayApp.RedisClusterCache,
+        mode: :redis_cluster,
+        master_nodes: [
+          [
             host: "127.0.0.1",
-            port: 6379
+            port: 7000
           ],
-          secondary: [
-            url: "redis://10.10.10.10:6379",
-            pool_size: 2
+          [
+            url: "redis://127.0.0.1:7001"
+          ],
+          [
+            url: "redis://127.0.0.1:7002"
+          ]
+        ],
+        conn_opts: [
+          # Redix options, except `:host` and `:port`; unless we have a cluster
+          # of nodes with the same host and/or port, which doesn't make sense.
+        ]
+
+  ## Client-side Cluster Options
+
+  In addition to shared options, `:cluster` mode supports the following
+  options:
+
+    * `:nodes` - The list of nodes the adapter will setup the cluster with;
+      a pool of connections is established per node. The `:cluster` mode
+      enables resilience, be able to survive in case any node(s) gets
+      unreachable. For each element of the list, we set the configuration
+      for each node, such as `:conn_opts`, `:pool_size`, etc.
+
+  ## Clustered Cache Example
+
+      config :my_app, MayApp.ClusteredCache,
+        mode: :cluster,
+        nodes: [
+          node1: [
+            pool_size: 10,
+            conn_opts: [
+              host: "127.0.0.1",
+              port: 9001
+            ]
+          ],
+          node2: [
+            pool_size: 4,
+            conn_opts: [
+              url: "redis://127.0.0.1:9002"
+            ]
+          ],
+          node3: [
+            conn_opts: [
+              host: "127.0.0.1",
+              port: 9003
+            ]
           ]
         ]
 
@@ -120,8 +187,10 @@ defmodule NebulexRedisAdapter do
   @behaviour Nebulex.Adapter
   @behaviour Nebulex.Adapter.Queryable
 
+  import NebulexRedisAdapter.String
+
   alias Nebulex.Object
-  alias NebulexRedisAdapter.Command
+  alias NebulexRedisAdapter.{Cluster, Command, Connection, RedisCluster}
 
   @default_pool_size System.schedulers_online()
 
@@ -129,22 +198,33 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   defmacro __before_compile__(env) do
-    otp_app = Module.get_attribute(env.module, :otp_app)
     config = Module.get_attribute(env.module, :config)
+    mode = Keyword.get(config, :mode, :standalone)
+    pool_size = Keyword.get(config, :pool_size, @default_pool_size)
+    hash_slot = Keyword.get(config, :hash_slot)
 
-    pool_size =
-      if pools = Keyword.get(config, :pools) do
-        Enum.reduce(pools, 0, fn {_, pool}, acc ->
-          acc + Keyword.get(pool, :pool_size, @default_pool_size)
-        end)
-      else
-        raise ArgumentError,
-              "missing :pools configuration in " <>
-                "config #{inspect(otp_app)}, #{inspect(env.module)}"
+    nodes =
+      for {node_name, node_opts} <- Keyword.get(config, :nodes, []) do
+        {node_name, Keyword.get(node_opts, :pool_size, @default_pool_size)}
       end
 
     quote do
+      def __mode__, do: unquote(mode)
+
       def __pool_size__, do: unquote(pool_size)
+
+      def __nodes__, do: unquote(nodes)
+
+      cond do
+        unquote(hash_slot) ->
+          def __hash_slot__, do: unquote(hash_slot)
+
+        unquote(mode) == :redis_cluster ->
+          def __hash_slot__, do: RedisCluster
+
+        true ->
+          def __hash_slot__, do: Cluster
+      end
     end
   end
 
@@ -152,34 +232,15 @@ defmodule NebulexRedisAdapter do
   def init(opts) do
     cache = Keyword.fetch!(opts, :cache)
 
-    children =
-      opts
-      |> Keyword.fetch!(:pools)
-      |> Enum.reduce([], fn {_, pool}, acc ->
-        acc ++ children(pool, cache, acc)
-      end)
+    case cache.__mode__ do
+      :standalone ->
+        Connection.init(opts)
 
-    {:ok, children}
-  end
+      :cluster ->
+        NebulexCluster.init([connection_module: NebulexRedisAdapter.Connection] ++ opts)
 
-  defp children(pool, cache, acc) do
-    offset = length(acc)
-    pool_size = Keyword.get(pool, :pool_size, @default_pool_size)
-
-    for i <- offset..(offset + pool_size - 1) do
-      opts =
-        pool
-        |> Keyword.delete(:pool_size)
-        |> Keyword.put(:name, :"#{cache}_redix_#{i}")
-
-      case opts[:url] do
-        nil ->
-          Supervisor.child_spec({Redix, opts}, id: {Redix, i})
-
-        url ->
-          opts = opts |> Keyword.delete(:url)
-          Supervisor.child_spec({Redix, {url, opts}}, id: {Redix, i})
-      end
+      :redis_cluster ->
+        RedisCluster.init(opts)
     end
   end
 
@@ -192,8 +253,25 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def get_many(cache, keys, _opts) do
+    do_get_many(cache.__mode__, cache, keys)
+  end
+
+  defp do_get_many(:standalone, cache, keys) do
+    mget(nil, cache, keys)
+  end
+
+  defp do_get_many(mode, cache, keys) do
+    keys
+    |> group_keys_by_hash_slot(cache, mode)
+    |> Enum.reduce(%{}, fn {hash_slot, keys}, acc ->
+      return = mget(hash_slot, cache, keys)
+      Map.merge(acc, return)
+    end)
+  end
+
+  defp mget(hash_slot_key, cache, keys) do
     cache
-    |> Command.exec!(["MGET" | for(k <- keys, do: encode(k))])
+    |> Command.exec!(["MGET" | for(k <- keys, do: encode(k))], hash_slot_key)
     |> Enum.reduce({keys, %{}}, fn
       nil, {[_key | keys], acc} ->
         {keys, acc}
@@ -207,8 +285,9 @@ defmodule NebulexRedisAdapter do
   @impl true
   def set(cache, object, opts) do
     cmd_opts = cmd_opts(opts, action: :set, ttl: nil)
+    redis_k = encode(object.key)
 
-    case Command.exec!(cache, ["SET", encode(object.key), encode(object) | cmd_opts]) do
+    case Command.exec!(cache, ["SET", redis_k, encode(object) | cmd_opts], redis_k) do
       "OK" -> true
       nil -> false
     end
@@ -216,6 +295,22 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def set_many(cache, objects, opts) do
+    set_many(cache.__mode__, cache, objects, opts)
+  end
+
+  defp set_many(:standalone, cache, objects, opts) do
+    do_set_many(nil, cache, objects, opts)
+  end
+
+  defp set_many(mode, cache, objects, opts) do
+    objects
+    |> group_keys_by_hash_slot(cache, mode)
+    |> Enum.each(fn {hash_slot, objects} ->
+      do_set_many(hash_slot, cache, objects, opts)
+    end)
+  end
+
+  defp do_set_many(hash_slot_or_key, cache, objects, opts) do
     default_exp =
       opts
       |> Keyword.get(:ttl)
@@ -233,13 +328,22 @@ defmodule NebulexRedisAdapter do
         {[encode(object), redis_k | acc1], acc2}
       end)
 
-    ["OK" | _] = Command.pipeline!(cache, [Enum.reverse(mset) | expire])
+    ["OK" | _] = Command.pipeline!(cache, [Enum.reverse(mset) | expire], hash_slot_or_key)
     :ok
+  end
+
+  defp group_keys_by_hash_slot(enum, cache, :cluster) do
+    Cluster.group_keys_by_hash_slot(enum, cache)
+  end
+
+  defp group_keys_by_hash_slot(enum, cache, :redis_cluster) do
+    RedisCluster.group_keys_by_hash_slot(enum, cache)
   end
 
   @impl true
   def delete(cache, key, _opts) do
-    _ = Command.exec!(cache, ["DEL", encode(key)])
+    redis_k = encode(key)
+    _ = Command.exec!(cache, ["DEL", redis_k], redis_k)
     :ok
   end
 
@@ -254,7 +358,9 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def has_key?(cache, key) do
-    case Command.exec!(cache, ["EXISTS", encode(key)]) do
+    redis_k = encode(key)
+
+    case Command.exec!(cache, ["EXISTS", redis_k], redis_k) do
       1 -> true
       0 -> false
     end
@@ -262,7 +368,9 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def object_info(cache, key, :ttl) do
-    case Command.exec!(cache, ["TTL", encode(key)]) do
+    redis_k = encode(key)
+
+    case Command.exec!(cache, ["TTL", redis_k], redis_k) do
       -1 -> :infinity
       -2 -> nil
       ttl -> ttl
@@ -278,16 +386,18 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def expire(cache, key, :infinity) do
-    key = encode(key)
+    redis_k = encode(key)
 
-    case Command.pipeline!(cache, [["TTL", key], ["PERSIST", key]]) do
+    case Command.pipeline!(cache, [["TTL", redis_k], ["PERSIST", redis_k]], redis_k) do
       [-2, 0] -> nil
       [_, _] -> :infinity
     end
   end
 
   def expire(cache, key, ttl) do
-    case Command.exec!(cache, ["EXPIRE", encode(key), ttl]) do
+    redis_k = encode(key)
+
+    case Command.exec!(cache, ["EXPIRE", redis_k, ttl], redis_k) do
       1 -> Object.expire_at(ttl) || :infinity
       0 -> nil
     end
@@ -295,17 +405,18 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def update_counter(cache, key, incr, _opts) when is_integer(incr) do
-    Command.exec!(cache, ["INCRBY", encode(key), incr])
+    redis_k = encode(key)
+    Command.exec!(cache, ["INCRBY", redis_k, incr], redis_k)
   end
 
   @impl true
   def size(cache) do
-    Command.exec!(cache, ["DBSIZE"])
+    exec!(cache.__mode__, [cache, ["DBSIZE"]], [0, &Kernel.+(&2, &1)])
   end
 
   @impl true
   def flush(cache) do
-    _ = Command.exec!(cache, ["FLUSHALL"])
+    _ = exec!(cache.__mode__, [cache, ["FLUSHALL"]], [])
     :ok
   end
 
@@ -341,7 +452,9 @@ defmodule NebulexRedisAdapter do
   ## Private Functions
 
   defp with_ttl(:object, cache, key, pipeline) do
-    case Command.pipeline!(cache, [["TTL", encode(key)] | pipeline]) do
+    redis_k = encode(key)
+
+    case Command.pipeline!(cache, [["TTL", redis_k] | pipeline], redis_k) do
       [-2 | _] ->
         nil
 
@@ -353,27 +466,13 @@ defmodule NebulexRedisAdapter do
   end
 
   defp with_ttl(_, cache, key, pipeline) do
+    redis_k = encode(key)
+
     cache
-    |> Command.pipeline!(pipeline)
+    |> Command.pipeline!(pipeline, redis_k)
     |> hd()
     |> decode()
     |> object(key, -1)
-  end
-
-  defp encode(data) do
-    to_string(data)
-  rescue
-    _e -> :erlang.term_to_binary(data)
-  end
-
-  defp decode(nil), do: nil
-
-  defp decode(data) do
-    if String.printable?(data) do
-      data
-    else
-      :erlang.binary_to_term(data)
-    end
   end
 
   defp object(nil, _key, _ttl), do: nil
@@ -409,6 +508,18 @@ defmodule NebulexRedisAdapter do
   end
 
   defp execute_query(pattern, cache) do
-    Command.exec!(cache, ["KEYS", pattern])
+    exec!(cache.__mode__, [cache, ["KEYS", pattern]], [[], &Kernel.++(&1, &2)])
+  end
+
+  defp exec!(:standalone, args, _extra_args) do
+    apply(Command, :exec!, args)
+  end
+
+  defp exec!(:cluster, args, extra_args) do
+    apply(Cluster, :exec!, args ++ extra_args)
+  end
+
+  defp exec!(:redis_cluster, args, extra_args) do
+    apply(RedisCluster, :exec!, args ++ extra_args)
   end
 end

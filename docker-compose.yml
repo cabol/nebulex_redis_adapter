@@ -1,0 +1,29 @@
+version: '3'
+
+services:
+  redis-standalone:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+
+  redis-standalone1:
+    image: "redis:alpine"
+    ports:
+      - "9001:6379"
+
+  redis-standalone2:
+    image: "redis:alpine"
+    ports:
+      - "9002:6379"
+
+  redis-standalone3:
+    image: "redis:alpine"
+    ports:
+      - "9003:6379"
+
+  redis-cluster:
+    image: grokzen/redis-cluster
+    ports:
+      - '7000-7005:7000-7005'
+    environment:
+      - REDIS_CLUSTER_IP=0.0.0.0
