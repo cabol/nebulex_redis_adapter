@@ -1,6 +1,21 @@
 # Change Log
 
-## [v1.0.0](https://github.com/cabol/nebulex_redis_adapter/tree/v1.0.0) (2018-12-11)
+## [v1.1.0](https://github.com/cabol/nebulex_redis_adapter/tree/v1.1.0) (2019-05-10)
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v1.0.0...v1.1.0)
+
+**Implemented enhancements:**
+
+- Default cluster support [\#10](https://github.com/cabol/nebulex_redis_adapter/issues/10)
+
+**Closed issues:**
+
+- Redis Clustering on Redis 4+ without Sentinel [\#8](https://github.com/cabol/nebulex_redis_adapter/issues/8)
+
+**Merged pull requests:**
+
+- Cluster Support [\#11](https://github.com/cabol/nebulex_redis_adapter/pull/11) ([cabol](https://github.com/cabol))
+
+## [v1.0.0](https://github.com/cabol/nebulex_redis_adapter/tree/v1.0.0) (2018-12-12)
 **Implemented enhancements:**
 
 - Add TravisCI support [\#7](https://github.com/cabol/nebulex_redis_adapter/issues/7)

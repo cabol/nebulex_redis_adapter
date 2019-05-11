@@ -1,4 +1,5 @@
-# Nebulex adapter for Redis
+# NebulexRedisAdapter
+> ### Nebulex adapter for Redis with cluster support.
 
 [![Build Status](https://travis-ci.org/cabol/nebulex_redis_adapter.svg?branch=master)](https://travis-ci.org/cabol/nebulex_redis_adapter)
 [![Coverage Status](https://coveralls.io/repos/github/cabol/nebulex_redis_adapter/badge.svg?branch=master)](https://coveralls.io/github/cabol/nebulex_redis_adapter?branch=master)
@@ -24,7 +25,7 @@ Add `nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:nebulex_redis_adapter, "~> 1.0"}
+    {:nebulex_redis_adapter, "~> 1.1"}
   ]
 end
 ```

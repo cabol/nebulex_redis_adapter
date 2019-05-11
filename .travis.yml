@@ -9,7 +9,7 @@ elixir:
   - 1.8
 
 otp_release:
-  - 21.2
+  - 21.3
 
 env:
   - NBX_TEST=true MIX_ENV=test DOCKER_COMPOSE_VERSION=1.22.0 REDIS_CLUSTER_IP=0.0.0.0

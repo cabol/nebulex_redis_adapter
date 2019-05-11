@@ -1,7 +1,7 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "1.1.0-dev"
+  @version "1.1.0"
 
   def project do
     [
@@ -34,39 +34,39 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp deps do
     [
-      {:redix, "~> 0.9"},
+      {:redix, "~> 0.10"},
 
       # This is because the adapter tests need some support modules and shared
       # tests from nebulex dependency, and the hex dependency doesn't include
       # the test folder. Hence, to run the tests it is necessary to fetch
       # nebulex dependency directly from GH.
-      # {:nebulex, nebulex_opts()},
-      {:nebulex_cluster, github: "cabol/nebulex_cluster"},
+      {:nebulex, nebulex_dep()},
+      {:nebulex_cluster, "~> 0.1"},
       {:jchash, "~> 0.1", runtime: false},
       {:crc, "~> 0.9"},
 
       # Test
-      {:excoveralls, "~> 0.6", only: :test},
-      {:benchee, "~> 0.13", optional: true, only: :dev},
-      {:benchee_html, "~> 0.5", optional: true, only: :dev},
+      {:excoveralls, "~> 0.11", only: :test},
+      {:benchee, "~> 1.0", optional: true, only: :dev},
+      {:benchee_html, "~> 1.0", optional: true, only: :dev},
 
       # Code Analysis
       {:dialyxir, "~> 0.5", optional: true, only: [:dev, :test], runtime: false},
-      {:credo, "~> 0.10", optional: true, only: [:dev, :test]},
+      {:credo, "~> 1.0", optional: true, only: [:dev, :test]},
 
       # Docs
-      {:ex_doc, "~> 0.19", only: :dev, runtime: false},
-      {:inch_ex, "~> 0.5", only: :docs}
+      {:ex_doc, "~> 0.20", only: :dev, runtime: false},
+      {:inch_ex, "~> 2.0", only: :docs}
     ]
   end
 
-  # defp nebulex_opts do
-  #   if System.get_env("NBX_TEST") do
-  #     [github: "cabol/nebulex", branch: "master"]
-  #   else
-  #     "~> 1.0"
-  #   end
-  # end
+  defp nebulex_dep do
+    if System.get_env("NBX_TEST") do
+      [github: "cabol/nebulex", tag: "v1.1.0", override: true]
+    else
+      "~> 1.1"
+    end
+  end
 
   defp package do
     [

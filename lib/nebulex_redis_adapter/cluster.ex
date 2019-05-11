@@ -17,6 +17,7 @@ defmodule NebulexRedisAdapter.Cluster do
           reducer :: (any, any -> any)
         ) :: any | no_return
   def exec!(cache, command, init_acc \\ nil, reducer \\ fn res, _ -> res end) do
+    # TODO: Perhaps this should be performed in parallel
     Enum.reduce(cache.__nodes__, init_acc, fn {node_name, pool_size}, acc ->
       cache
       |> NebulexCluster.pool_name(node_name)

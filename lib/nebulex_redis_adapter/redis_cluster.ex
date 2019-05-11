@@ -80,6 +80,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
           reducer :: (any, any -> any)
         ) :: any | no_return
   def exec!(cache, command, init_acc \\ nil, reducer \\ fn res, _ -> res end) do
+    # TODO: Perhaps this should be performed in parallel
     cache
     |> cluster_slots_tab()
     |> :ets.lookup(cache)
