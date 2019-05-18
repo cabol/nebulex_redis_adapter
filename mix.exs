@@ -32,6 +32,10 @@ defmodule NebulexRedisAdapter.MixProject do
     ]
   end
 
+  def application do
+    []
+  end
+
   defp deps do
     [
       {:redix, "~> 0.10"},
@@ -42,7 +46,7 @@ defmodule NebulexRedisAdapter.MixProject do
       # nebulex dependency directly from GH.
       {:nebulex, nebulex_dep()},
       {:nebulex_cluster, "~> 0.1"},
-      {:jchash, "~> 0.1", runtime: false},
+      {:jchash, "~> 0.1.1"},
       {:crc, "~> 0.9"},
 
       # Test
