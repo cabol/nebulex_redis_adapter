@@ -4,7 +4,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
   use Nebulex.Adapter.HashSlot
 
-  import NebulexRedisAdapter.String
+  import NebulexRedisAdapter.Encoder
 
   alias NebulexCluster.Pool
   alias NebulexRedisAdapter.Connection

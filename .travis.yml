@@ -6,9 +6,10 @@ services:
   - docker
 
 elixir:
-  - 1.8
+  - 1.9
 
 otp_release:
+  - 22.1
   - 21.3
 
 env:
@@ -20,11 +21,11 @@ before_script:
   - mix deps.get --only test
 
 script:
+  - mix format --check-formatted
+  - mix credo --strict
   - mix coveralls.travis
   - mix dialyzer --plt
   - mix dialyzer --halt-exit-status
-  - mix credo --strict
-  - mix format --check-formatted
 
 after_script:
   - MIX_ENV=docs mix deps.get

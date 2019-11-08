@@ -30,12 +30,46 @@ defmodule NebulexRedisAdapter do
       next values: `:standalone | :cluster | :redis_cluster`. Defaults to
       `:standalone`.
 
-    * `:pool_size` - number of connections to keep in the pool.
+    * `:pool_size` - Number of connections to keep in the pool.
       Defaults to `System.schedulers_online()`.
 
     * `:conn_opts` - Redis client options (`Redix` options in this case).
       For more information about the options (Redis and connection options),
       please check out `Redix` docs.
+
+    * `:default_data_type` - Sets the default data type for encoding Redis
+      values. Defaults to `:object`. For more information, check the
+      "Data Types" section below.
+
+    * `:dt` - This option is only valid for set-like operations and allows us
+      to change the Redis value encoding via this option. This option overrides
+      `:default_data_type`. Defaults to `:object`. For more information, check
+      the "Data Types" section below.
+
+  ## Data Types
+
+  This adapter supports different ways to encode and store Redis values,
+  regarding the data type we are working with. Supported values:
+
+    * `:object` - By default, the value stored in Redis is the
+      `Nebulex.Object.t()` itself, before to insert it, it is encoded as binary
+      using `:erlang.term_to_binary/1`. The downside is it consumes more memory
+      since the object contains not only the value but also the key, the TTL,
+      and the version. This is the default.
+
+    * `:string` - If this option is set and the object value can be converted
+      to a valid string (e.g.: strings, integers, atoms), then that string is
+      stored directly in Redis without any encoding.
+
+  ### Usage Example
+
+      MyCache.set("foo", "bar", dt: :string)
+
+      MyCache.set("int", 123, dt: :string)
+
+      MyCache.set("atom", :atom, dt: :string)
+
+  **NOTE:** Support for other Redis Data Types is in progress.
 
   ## Standalone Example
 
@@ -187,7 +221,7 @@ defmodule NebulexRedisAdapter do
   @behaviour Nebulex.Adapter
   @behaviour Nebulex.Adapter.Queryable
 
-  import NebulexRedisAdapter.String
+  import NebulexRedisAdapter.Encoder
 
   alias Nebulex.Object
   alias NebulexRedisAdapter.{Cluster, Command, Connection, RedisCluster}
@@ -202,6 +236,7 @@ defmodule NebulexRedisAdapter do
     mode = Keyword.get(config, :mode, :standalone)
     pool_size = Keyword.get(config, :pool_size, @default_pool_size)
     hash_slot = Keyword.get(config, :hash_slot)
+    default_dt = Keyword.get(config, :default_data_type, :object)
 
     nodes =
       for {node_name, node_opts} <- Keyword.get(config, :nodes, []) do
@@ -224,6 +259,10 @@ defmodule NebulexRedisAdapter do
 
         true ->
           def __hash_slot__, do: Cluster
+      end
+
+      def get_data_type(opts) do
+        Keyword.get(opts, :dt, unquote(default_dt))
       end
     end
   end
@@ -277,7 +316,12 @@ defmodule NebulexRedisAdapter do
         {keys, acc}
 
       entry, {[key | keys], acc} ->
-        {keys, Map.put(acc, key, decode(entry))}
+        value =
+          entry
+          |> decode()
+          |> object(key, -1)
+
+        {keys, Map.put(acc, key, value)}
     end)
     |> elem(1)
   end
@@ -286,8 +330,9 @@ defmodule NebulexRedisAdapter do
   def set(cache, object, opts) do
     cmd_opts = cmd_opts(opts, action: :set, ttl: nil)
     redis_k = encode(object.key)
+    redis_v = encode(object, cache.get_data_type(opts))
 
-    case Command.exec!(cache, ["SET", redis_k, encode(object) | cmd_opts], redis_k) do
+    case Command.exec!(cache, ["SET", redis_k, redis_v | cmd_opts], redis_k) do
       "OK" -> true
       nil -> false
     end
@@ -311,6 +356,8 @@ defmodule NebulexRedisAdapter do
   end
 
   defp do_set_many(hash_slot_or_key, cache, objects, opts) do
+    dt = cache.get_data_type(opts)
+
     default_exp =
       opts
       |> Keyword.get(:ttl)
@@ -325,7 +372,7 @@ defmodule NebulexRedisAdapter do
             do: [["EXPIRE", redis_k, Object.remaining_ttl(expire_at)] | acc2],
             else: acc2
 
-        {[encode(object), redis_k | acc1], acc2}
+        {[encode(object, dt), redis_k | acc1], acc2}
       end)
 
     ["OK" | _] = Command.pipeline!(cache, [Enum.reverse(mset) | expire], hash_slot_or_key)
@@ -482,7 +529,7 @@ defmodule NebulexRedisAdapter do
     %{obj | expire_at: Object.expire_at(ttl)}
   end
 
-  defp object(value, key, -1) do
+  defp object(value, key, _ttl) when is_binary(value) do
     %Object{key: key, value: value}
   end
 
