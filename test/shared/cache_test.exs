@@ -73,6 +73,20 @@ defmodule NebulexRedisAdapter.CacheTest do
                  "**name**" |> @cache.all() |> @cache.get_many()
       end
 
+      test "string data type" do
+        assert "bar" == @cache.set("foo", "bar", dt: :string)
+        assert "bar" == @cache.get("foo")
+
+        assert 123 == @cache.set("int", 123, dt: :string)
+        assert "123" == @cache.get("int")
+
+        assert :atom == @cache.set("atom", :atom, dt: :string)
+        assert "atom" == @cache.get("atom")
+
+        assert :ok == @cache.set_many(%{"foo" => "bar", 1 => 1, :a => :a}, dt: :string)
+        assert %{"foo" => "bar", 1 => "1", :a => "a"} == @cache.get_many(["foo", 1, :a])
+      end
+
       ## Private Functions
 
       defp to_int(keys), do: :lists.usort(for(k <- keys, do: String.to_integer(k)))

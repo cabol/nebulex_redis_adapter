@@ -1,13 +1,13 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "1.1.0"
+  @version "1.1.1-dev"
 
   def project do
     [
       app: :nebulex_redis_adapter,
       version: @version,
-      elixir: "~> 1.6",
+      elixir: "~> 1.8",
       deps: deps(),
 
       # Docs
@@ -66,7 +66,7 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp nebulex_dep do
     if System.get_env("NBX_TEST") do
-      [github: "cabol/nebulex", tag: "v1.1.0", override: true]
+      [github: "cabol/nebulex", tag: "v1.1.1", override: true]
     else
       "~> 1.1"
     end

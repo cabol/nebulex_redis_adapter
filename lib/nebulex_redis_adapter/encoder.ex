@@ -1,8 +1,18 @@
-defmodule NebulexRedisAdapter.String do
+defmodule NebulexRedisAdapter.Encoder do
   @moduledoc false
 
-  @spec encode(term) :: binary
-  def encode(data) do
+  alias Nebulex.Object
+
+  @type dt :: :object | :string
+
+  @spec encode(term, dt) :: binary
+  def encode(data, dt \\ :object)
+
+  def encode(%Object{value: data}, :string) do
+    to_string(data)
+  end
+
+  def encode(data, _) do
     to_string(data)
   rescue
     _e -> :erlang.term_to_binary(data)
