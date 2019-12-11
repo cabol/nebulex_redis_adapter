@@ -416,7 +416,7 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def flush(cache) do
-    _ = exec!(cache.__mode__, [cache, ["FLUSHALL"]], [])
+    _ = exec!(cache.__mode__, [cache, ["FLUSHDB"]], [])
     :ok
   end
 
