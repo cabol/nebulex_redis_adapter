@@ -12,6 +12,10 @@ defmodule NebulexRedisAdapter.Encoder do
     to_string(data)
   end
 
+  def encode(data, :compressed) do
+    :erlang.term_to_binary(data, [:compressed])
+  end
+
   def encode(data, _) do
     to_string(data)
   rescue
