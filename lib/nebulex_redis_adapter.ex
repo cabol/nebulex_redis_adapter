@@ -57,6 +57,9 @@ defmodule NebulexRedisAdapter do
       since the object contains not only the value but also the key, the TTL,
       and the version. This is the default.
 
+    * `:compressed` - just like `:object`, but passes [:compressed] option
+      to :erlang.term_to_binary/2
+
     * `:string` - If this option is set and the object value can be converted
       to a valid string (e.g.: strings, integers, atoms), then that string is
       stored directly in Redis without any encoding.
