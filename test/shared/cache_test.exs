@@ -88,8 +88,8 @@ defmodule NebulexRedisAdapter.CacheTest do
       end
 
       test "compressed data type" do
-        assert "bar" == @cache.set("foo", %{answer: 42}, dt: :compressed)
-        assert %{answer: 42} == @cache.get("foo")
+        assert %{bar: 42} == @cache.set("foo", %{bar: 42}, dt: :compressed)
+        assert %{bar: 42} == @cache.get("foo")
       end
 
       ## Private Functions
