@@ -1,6 +1,6 @@
 defmodule NebulexRedisAdapter.ClusterTest do
   use ExUnit.Case, async: true
-  use NebulexRedisAdapter.CacheTest, cache: NebulexRedisAdapter.TestCache.Cluster
+  use NebulexRedisAdapter.CacheTest
 
   alias NebulexRedisAdapter.TestCache.Cluster, as: Cache
 
@@ -10,8 +10,10 @@ defmodule NebulexRedisAdapter.ClusterTest do
     :ok
 
     on_exit(fn ->
-      _ = :timer.sleep(100)
+      :ok = Process.sleep(100)
       if Process.alive?(pid), do: Cache.stop(pid)
     end)
+
+    {:ok, cache: Cache, name: Cache}
   end
 end

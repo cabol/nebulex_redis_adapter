@@ -1,13 +1,14 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "1.1.1"
+  @version "2.0.0-dev"
 
   def project do
     [
       app: :nebulex_redis_adapter,
       version: @version,
-      elixir: "~> 1.8",
+      elixir: "~> 1.9",
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
 
       # Docs
@@ -17,6 +18,8 @@ defmodule NebulexRedisAdapter.MixProject do
       # Testing
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
+        credo: :test,
+        dialyzer: :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -32,6 +35,9 @@ defmodule NebulexRedisAdapter.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
   def application do
     []
   end
@@ -45,28 +51,27 @@ defmodule NebulexRedisAdapter.MixProject do
       # the test folder. Hence, to run the tests it is necessary to fetch
       # nebulex dependency directly from GH.
       {:nebulex, nebulex_dep()},
-      {:nebulex_cluster, "~> 0.1"},
-      {:jchash, "~> 0.1.1"},
+      {:nebulex_cluster, github: "cabol/nebulex_cluster"},
       {:crc, "~> 0.9"},
+      {:jchash, "~> 0.1.2", optional: true},
 
-      # Test
-      {:excoveralls, "~> 0.11", only: :test},
+      # Test & Code Analysis
+      {:excoveralls, "~> 0.13", only: :test},
       {:benchee, "~> 1.0", optional: true, only: :dev},
       {:benchee_html, "~> 1.0", optional: true, only: :dev},
-
-      # Code Analysis
-      {:dialyxir, "~> 0.5", optional: true, only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.0", optional: true, only: [:dev, :test]},
+      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.4", only: [:dev, :test]},
 
       # Docs
-      {:ex_doc, "~> 0.20", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.23", only: [:dev, :test], runtime: false},
       {:inch_ex, "~> 2.0", only: :docs}
     ]
   end
 
   defp nebulex_dep do
     if System.get_env("NBX_TEST") do
-      [github: "cabol/nebulex", tag: "v1.1.1", override: true]
+      # [github: "cabol/nebulex", tag: "v1.1.1", override: true]
+      [github: "cabol/nebulex", branch: "master", override: true]
     else
       "~> 1.1"
     end
@@ -92,7 +97,8 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:mix, :eex, :nebulex, :shards, :jchash],
+      plt_add_apps: [:nebulex, :jchash],
+      plt_file: {:no_warn, "priv/plts/" <> plt_file_name()},
       flags: [
         :unmatched_returns,
         :error_handling,
@@ -102,5 +108,9 @@ defmodule NebulexRedisAdapter.MixProject do
         :no_return
       ]
     ]
+  end
+
+  defp plt_file_name do
+    "dialyzer-#{Mix.env()}-#{System.otp_release()}-#{System.version()}.plt"
   end
 end

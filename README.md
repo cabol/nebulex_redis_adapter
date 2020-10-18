@@ -1,7 +1,7 @@
 # NebulexRedisAdapter
 > ### Nebulex adapter for Redis with cluster support.
 
-[![Build Status](https://travis-ci.org/cabol/nebulex_redis_adapter.svg?branch=master)](https://travis-ci.org/cabol/nebulex_redis_adapter)
+![CI](https://github.com/cabol/nebulex_redis_adapter/workflows/CI/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/cabol/nebulex_redis_adapter/badge.svg?branch=master)](https://coveralls.io/github/cabol/nebulex_redis_adapter?branch=master)
 [![Inline docs](http://inch-ci.org/github/cabol/nebulex_redis_adapter.svg)](http://inch-ci.org/github/cabol/nebulex_redis_adapter)
 [![Hex Version](https://img.shields.io/hexpm/v/nebulex_redis_adapter.svg)](https://hex.pm/packages/nebulex_redis_adapter)
@@ -71,12 +71,11 @@ There are different ways to support distributed caching when using
 
 ### Redis Cluster
 
-Redis can be setup in distributed fashion by means of [Redis Cluster][redis_cluster],
-which is a built-in feature since version 3.0 (or greater). The adapter provides
-the `:redis_cluster` mode to setup **Redis Cluster** from client-side
-automatically and be able to use it transparently.
-
-[redis_cluster]: https://redis.io/topics/cluster-tutorial
+[Redis Cluster](https://redis.io/topics/cluster-tutorial) is a built-in feature
+in Redis since version 3, and it may be the most convenient and recommendable
+way to set up Redis in a cluster and have a distributed cache storage out-of-box.
+This adapter provides the `:redis_cluster` mode to set up **Redis Cluster**
+from the client-side automatically and be able to use it transparently.
 
 First of all, ensure you have **Redis Cluster** configured and running.
 
@@ -124,11 +123,10 @@ configured by the adapter once it gets the cluster slots info.
 > This one could be the easiest and recommended way for distributed caching
   using Redis and **NebulexRedisAdapter**.
 
-### Client-side Cluster based on Sharding (and consistent hashing)
+### Client-side Cluster based on Sharding
 
 **NebulexRedisAdapter** also brings with a simple client-side cluster
-implementation based on Sharding as distribution model and consistent
-hashing for node resolution.
+implementation based on Sharding distribution model.
 
 We define our cache normally:
 
@@ -140,12 +138,30 @@ defmodule MyApp.ClusteredCache do
 end
 ```
 
+The Keyslot module using consistent hashing:
+
+```elixir
+defmodule MyApp.ClusteredCache.Keyslot do
+  use Nebulex.Adapter.Keyslot
+
+  @impl true
+  def hash_slot(key, range) do
+    key
+    |> :erlang.phash2()
+    |> :jchash.compute(range)
+  end
+end
+```
+
 And then, within the config:
 
 ```elixir
 config :my_app, MayApp.ClusteredCache,
   # Enable client-side cluster mode
   mode: :cluster,
+
+  # Keyslot with consistent hashing
+  keyslot: MyApp.ClusteredCache.Keyslot,
 
   # Nodes config (each node has its own options)
   nodes: [
@@ -175,32 +191,29 @@ config :my_app, MayApp.ClusteredCache,
   ]
 ```
 
+> **NOTE:** It is highly recommendable to provide a consistent hashing
+  implementation for `Nebulex.Adapter.Keyslot`.
+
 That's all, the rest of the work is done by **NebulexRedisAdapter**
 automatically.
 
 ### Using `Nebulex.Adapters.Dist`
 
-Another simple option is to use the `Nebulex.Adapters.Dist` and set as local
-cache the `NebulexRedisAdapter`. The idea here is that each Elixir node running
-the distributed cache (`Nebulex.Adapters.Dist`) will have as local backend or
-cache a Redis instance (handled by `NebulexRedisAdapter`).
+Another simple option is to use the `Nebulex.Adapters.Partitioned` and set as
+local cache the `NebulexRedisAdapter`. The idea here is each Elixir node running
+the distributed cache (`Nebulex.Adapters.Partitioned`) will have as local
+backend or cache a Redis instance (handled by `NebulexRedisAdapter`).
 
 
 This example shows how the setup a distributed cache using
-`Nebulex.Adapters.Dist` and `NebulexRedisAdapter`:
+`Nebulex.Adapters.Partitioned` and `NebulexRedisAdapter`:
 
 ```elixir
 defmodule MyApp.DistributedCache do
   use Nebulex.Cache,
     otp_app: :nebulex,
-    adapter: Nebulex.Adapters.Dist,
-    local: MyApp.DistributedCache.RedisLocalCache
-
-  defmodule RedisLocalCache do
-    use Nebulex.Cache,
-      otp_app: :nebulex,
-      adapter: NebulexRedisAdapter
-  end
+    adapter: Nebulex.Adapters.Partitioned,
+    primary_storage_adapter: NebulexRedisAdapter
 end
 ```
 
@@ -212,6 +225,37 @@ the adparter's side (**NebulexRedisAdapter**), it would be only configuration.
 Instead of connect the adapter against the Redis nodes, we connect it against
 the proxy nodes, this means, in the config, we just setup the pools with the
 host and port for each proxy.
+
+## Using the cache for executing a Redis command or pipeline
+
+Since `NebulexRedisAdapter` works on top of `Redix` and provides features like
+connection pools and "Redis Cluster" support, it may be seen also as a sort of
+Redis client, but it is meant to be used mainly with the Nebulex cache API.
+However, Redis API is quite extensive and there are a lot of useful commands
+we may want to run taking advantage of the `NebulexRedisAdapter` features.
+Therefore, the adapter injects two additional/extended functions to the
+defined cache: `command!/3` and `pipeline!/3`.
+
+```elixir
+iex> MyCache.command!("mylist", ["LPUSH", "mylist", "world"])
+1
+iex> MyCache.command!("mylist", ["LPUSH", "mylist", "hello"])
+2
+iex> MyCache.command!("mylist", ["LRANGE", "mylist", "0", "-1"])
+["hello", "world"]
+
+iex> cache.pipeline!("mylist", [
+...>   ["LPUSH", "mylist", "world"],
+...>   ["LPUSH", "mylist", "hello"],
+...>   ["LRANGE", "mylist", "0", "-1"]
+...> ])
+[1, 2, ["hello", "world"]]
+```
+
+**NOTE:** The `key` is required when used the adapter in mode `:cluster` or
+`:redis_cluster`, for `:standalone` no needed (optional). And the `name` is
+in case you are using a dynamic cache and you have to pass the cache name
+explicitly.
 
 ## Testing
 
@@ -289,7 +333,6 @@ Before to submit a PR it is highly recommended to run:
 
  * `export NBX_TEST=true` to fetch Nebulex from GH directly and be able to
    re-use shared tests.
- * `mix test` to run tests
  * `mix coveralls.html && open cover/excoveralls.html` to run tests and check
    out code coverage (expected 100%).
  * `mix format && mix credo --strict` to format your code properly and find code

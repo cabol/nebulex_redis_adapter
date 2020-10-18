@@ -2,23 +2,18 @@ defmodule NebulexRedisAdapter.RedisCluster do
   # Redis Cluster Manager
   @moduledoc false
 
-  use Nebulex.Adapter.HashSlot
-
-  import NebulexRedisAdapter.Encoder
-
   alias NebulexCluster.Pool
   alias NebulexRedisAdapter.Connection
   alias NebulexRedisAdapter.RedisCluster.NodeSupervisor
+
+  @compile {:inline, cluster_slots_tab: 1}
 
   @redis_cluster_hash_slots 16_384
 
   ## API
 
-  @spec init(Keyword.t()) :: {:ok, [Supervisor.child_spec()]}
-  def init(opts) do
-    # get cache
-    cache = Keyword.fetch!(opts, :cache)
-
+  @spec init(atom, pos_integer, Keyword.t()) :: {:ok, [Supervisor.child_spec()]}
+  def init(name, pool_size, opts) do
     # create a connection and retrieve cluster slots map
     cluster_slots =
       opts
@@ -26,24 +21,24 @@ defmodule NebulexRedisAdapter.RedisCluster do
       |> get_cluster_slots()
 
     # init ETS table to store cluster slots
-    _ = init_cluster_slots_table(cache)
+    _ = init_cluster_slots_table(name)
 
     # create specs for children
     children =
       for [start, stop | nodes] <- cluster_slots do
-        sup_name = :"#{cache}.#{start}.#{stop}"
+        sup_name = :"#{name}.#{start}.#{stop}"
 
         opts =
           opts
           |> Keyword.put(:name, sup_name)
-          |> Keyword.put(:pool_size, cache.__pool_size__)
+          |> Keyword.put(:pool_size, pool_size)
           |> Keyword.put(:nodes, nodes)
 
         # store mapping between cluster slot and supervisor name
         true =
-          cache
+          name
           |> cluster_slots_tab()
-          |> :ets.insert({cache, start, stop, sup_name})
+          |> :ets.insert({name, start, stop, sup_name})
 
         # define child spec
         Supervisor.child_spec({NodeSupervisor, opts},
@@ -55,89 +50,72 @@ defmodule NebulexRedisAdapter.RedisCluster do
     {:ok, children}
   end
 
-  @spec get_conn(Nebulex.Cache.t(), any) :: atom
-  def get_conn(cache, {:"$hash_slot", hash_slot}) do
-    cache
+  @spec get_conn(Nebulex.Adapter.adapter_meta(), {:"$hash_slot", any} | any) :: atom
+  def get_conn(%{name: name, pool_size: pool_size}, {:"$hash_slot", _} = key) do
+    get_conn(name, pool_size, key)
+  end
+
+  def get_conn(%{name: name, pool_size: pool_size, keyslot: keyslot}, key) do
+    get_conn(name, pool_size, hash_slot(key, keyslot))
+  end
+
+  defp get_conn(name, pool_size, {:"$hash_slot", hash_slot}) do
+    name
     |> cluster_slots_tab()
-    |> :ets.lookup(cache)
+    |> :ets.lookup(name)
     |> Enum.reduce_while(nil, fn
       {_, start, stop, name}, _acc when hash_slot >= start and hash_slot <= stop ->
-        {:halt, Pool.get_conn(name, cache.__pool_size__)}
+        {:halt, Pool.get_conn(name, pool_size)}
 
       _, acc ->
         {:cont, acc}
     end)
   end
 
-  def get_conn(cache, key) do
-    get_conn(cache, hash_slot(cache, key))
-  end
-
   @spec exec!(
-          Nebulex.Cache.t(),
+          Nebulex.Adapter.adapter_meta(),
           Redix.command(),
           init_acc :: any,
           reducer :: (any, any -> any)
         ) :: any | no_return
-  def exec!(cache, command, init_acc \\ nil, reducer \\ fn res, _ -> res end) do
+  def exec!(
+        %{name: name, pool_size: pool_size},
+        command,
+        init_acc \\ nil,
+        reducer \\ fn res, _ -> res end
+      ) do
     # TODO: Perhaps this should be performed in parallel
-    cache
+    name
     |> cluster_slots_tab()
-    |> :ets.lookup(cache)
+    |> :ets.lookup(name)
     |> Enum.reduce(init_acc, fn {_, _start, _stop, name}, acc ->
       name
-      |> Pool.get_conn(cache.__pool_size__)
+      |> Pool.get_conn(pool_size)
       |> Redix.command!(command)
       |> reducer.(acc)
     end)
   end
 
-  @spec group_keys_by_hash_slot(Enum.t(), Nebulex.Cache.t()) :: map
-  def group_keys_by_hash_slot(enum, cache) do
+  @spec group_keys_by_hash_slot(Enum.t(), module) :: map
+  def group_keys_by_hash_slot(enum, keyslot) do
     Enum.reduce(enum, %{}, fn
-      %Nebulex.Object{key: key} = object, acc ->
-        slot = hash_slot(cache, key)
-        Map.put(acc, slot, [object | Map.get(acc, slot, [])])
+      {key, _} = entry, acc ->
+        slot = hash_slot(key, keyslot)
+        Map.put(acc, slot, [entry | Map.get(acc, slot, [])])
 
       key, acc ->
-        slot = hash_slot(cache, key)
+        slot = hash_slot(key, keyslot)
         Map.put(acc, slot, [key | Map.get(acc, slot, [])])
     end)
   end
 
-  @spec hash_slot(Nebulex.Cache.t(), any) :: {:"$hash_slot", pos_integer}
-  def hash_slot(cache, key) do
-    {:"$hash_slot", cache.__hash_slot__.keyslot(key, @redis_cluster_hash_slots)}
+  @spec hash_slot(any, module) :: {:"$hash_slot", pos_integer}
+  def hash_slot(key, keyslot \\ __MODULE__.Keyslot) do
+    {:"$hash_slot", keyslot.hash_slot(key, @redis_cluster_hash_slots)}
   end
 
-  @spec cluster_slots_tab(Nebulex.Cache.t()) :: atom
-  def cluster_slots_tab(cache), do: :"#{cache}.ClusterSlots"
-
-  ## Nebulex.Adapter.HashSlot
-
-  @impl true
-  def keyslot("{" <> hash_tags = key, range) do
-    case String.split(hash_tags, "}") do
-      [key, _] -> do_keyslot(key, range)
-      _ -> do_keyslot(key, range)
-    end
-  end
-
-  def keyslot(key, range) when is_binary(key) do
-    do_keyslot(key, range)
-  end
-
-  def keyslot(key, range) do
-    key
-    |> encode()
-    |> do_keyslot(range)
-  end
-
-  defp do_keyslot(key, range) do
-    :crc_16_xmodem
-    |> CRC.crc(encode(key))
-    |> rem(range)
-  end
+  @spec cluster_slots_tab(atom) :: atom
+  def cluster_slots_tab(name), do: :"#{name}.ClusterSlots"
 
   ## Private Functions
 
@@ -177,5 +155,36 @@ defmodule NebulexRedisAdapter.RedisCluster do
       nil -> Redix.start_link(conn_opts)
       url -> Redix.start_link(url, name: :redix_cluster)
     end
+  end
+end
+
+defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
+  @moduledoc false
+  use Nebulex.Adapter.Keyslot
+
+  import NebulexRedisAdapter.Encoder
+
+  @impl true
+  def hash_slot("{" <> hash_tags = key, range) do
+    case String.split(hash_tags, "}") do
+      [key, _] -> do_hash_slot(key, range)
+      _ -> do_hash_slot(key, range)
+    end
+  end
+
+  def hash_slot(key, range) when is_binary(key) do
+    do_hash_slot(key, range)
+  end
+
+  def hash_slot(key, range) do
+    key
+    |> encode()
+    |> do_hash_slot(range)
+  end
+
+  defp do_hash_slot(key, range) do
+    :crc_16_xmodem
+    |> CRC.crc(key)
+    |> rem(range)
   end
 end

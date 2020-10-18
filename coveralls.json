@@ -1,8 +1,6 @@
 {
   "skip_files": [
-    "test/*",
-    "lib/nebulex_redis_adapter/cluster/hash_slot.ex",
-    "lib/nebulex_redis_adapter/list.ex"
+    "test/*"
   ],
 
   "coverage_options": {
