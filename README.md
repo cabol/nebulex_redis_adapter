@@ -13,7 +13,7 @@ a Redis driver for Elixir.
 The adapter supports different configurations modes which are explained in the
 next sections.
 
-Ypu can also check the [online documentation][nebulex_redis_adapter] to learn
+You can also check the [online documentation][nebulex_redis_adapter] to learn
 more about it.
 
 [nebulex_redis_adapter]: http://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html
