@@ -1,35 +1,26 @@
 defmodule NebulexRedisAdapter.Encoder do
   @moduledoc false
 
-  alias Nebulex.Object
+  ## API
 
-  @type dt :: :object | :string
+  @spec encode(term, Keyword.t()) :: binary
+  def encode(data, opts \\ [])
 
-  @spec encode(term, dt) :: binary
-  def encode(data, dt \\ :object)
-
-  def encode(%Object{value: data}, :string) do
-    to_string(data)
+  def encode(data, _opts) when is_binary(data) do
+    data
   end
 
-  def encode(data, :compressed) do
-    :erlang.term_to_binary(data, [:compressed])
-  end
-
-  def encode(data, _) do
-    to_string(data)
-  rescue
-    _e -> :erlang.term_to_binary(data)
+  def encode(data, opts) do
+    opts = Keyword.take(opts, [:compressed, :minor_version])
+    :erlang.term_to_binary(data, opts)
   end
 
   @spec decode(binary | nil) :: term
   def decode(nil), do: nil
 
   def decode(data) do
-    if String.printable?(data) do
-      data
-    else
-      :erlang.binary_to_term(data)
-    end
+    :erlang.binary_to_term(data)
+  rescue
+    ArgumentError -> data
   end
 end

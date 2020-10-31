@@ -3,13 +3,11 @@ defmodule NebulexRedisAdapter.Connection do
 
   ## API
 
-  @spec init(Keyword.t()) :: {:ok, [Supervisor.child_spec()]}
-  def init(opts) do
-    cache = Keyword.fetch!(opts, :cache)
-
+  @spec init(atom, pos_integer, Keyword.t()) :: {:ok, [Supervisor.child_spec()]}
+  def init(name, pool_size, opts) do
     children =
-      for i <- 0..(cache.__pool_size__ - 1) do
-        child_spec([name: :"#{cache}.#{i}"] ++ opts)
+      for i <- 0..(pool_size - 1) do
+        child_spec([name: :"#{name}.#{i}"] ++ opts)
       end
 
     {:ok, children}

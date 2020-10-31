@@ -5,17 +5,25 @@ defmodule NebulexRedisAdapter.Command do
   alias NebulexCluster.Pool
   alias NebulexRedisAdapter.RedisCluster
 
-  @spec exec!(Nebulex.Cache.t(), Redix.command(), Nebulex.Cache.key()) :: any | no_return
-  def exec!(cache, command, key \\ nil) do
-    cache
+  @spec exec!(
+          Nebulex.Adapter.adapter_meta(),
+          Redix.command(),
+          Nebulex.Cache.key()
+        ) :: any | no_return
+  def exec!(%{cache: cache} = meta, command, key \\ nil) do
+    meta
     |> conn(key)
     |> Redix.command(command)
     |> handle_command_response(cache)
   end
 
-  @spec pipeline!(Nebulex.Cache.t(), [Redix.command()], Nebulex.Cache.key()) :: [any] | no_return
-  def pipeline!(cache, commands, key \\ nil) do
-    cache
+  @spec pipeline!(
+          Nebulex.Adapter.adapter_meta(),
+          [Redix.command()],
+          Nebulex.Cache.key()
+        ) :: [any] | no_return
+  def pipeline!(%{cache: cache} = meta, commands, key \\ nil) do
+    meta
     |> conn(key)
     |> Redix.pipeline(commands)
     |> handle_command_response(cache)
@@ -26,13 +34,9 @@ defmodule NebulexRedisAdapter.Command do
     response
   end
 
-  def handle_command_response({:error, %Redix.Error{message: "MOVED" <> _} = reason}, cache) do
-    :ok =
-      cache
-      |> Process.whereis()
-      |> cache.stop()
-
-    raise reason
+  def handle_command_response({:error, %Redix.Error{message: "MOVED" <> _} = error}, cache) do
+    :ok = cache.stop()
+    raise error
   end
 
   def handle_command_response({:error, reason}, _cache) do
@@ -41,23 +45,19 @@ defmodule NebulexRedisAdapter.Command do
 
   ## Private Functions
 
-  defp conn(cache, key) do
-    conn(cache, key, cache.__mode__)
+  defp conn(%{mode: :standalone, name: name, pool_size: pool_size}, _key) do
+    Pool.get_conn(name, pool_size)
   end
 
-  defp conn(cache, _key, :standalone) do
-    Pool.get_conn(cache, cache.__pool_size__)
+  defp conn(%{mode: :cluster, name: name, nodes: nodes}, {:"$hash_slot", node_name}) do
+    NebulexCluster.get_conn(name, nodes, node_name)
   end
 
-  defp conn(cache, {:"$hash_slot", node_name}, :cluster) do
-    NebulexCluster.get_conn(cache, cache.__nodes__, node_name)
+  defp conn(%{mode: :cluster, name: name, nodes: nodes, keyslot: keyslot}, key) do
+    NebulexCluster.get_conn(name, nodes, key, keyslot)
   end
 
-  defp conn(cache, key, :cluster) do
-    NebulexCluster.get_conn(cache, cache.__nodes__, key, cache.__hash_slot__)
-  end
-
-  defp conn(cache, key, :redis_cluster) do
-    RedisCluster.get_conn(cache, key)
+  defp conn(%{mode: :redis_cluster} = meta, key) do
+    RedisCluster.get_conn(meta, key)
   end
 end
