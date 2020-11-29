@@ -9,6 +9,7 @@ defmodule NebulexRedisAdapter.MixProject do
       version: @version,
       elixir: "~> 1.9",
       elixirc_paths: elixirc_paths(Mix.env()),
+      aliases: aliases(),
       deps: deps(),
 
       # Docs
@@ -18,8 +19,7 @@ defmodule NebulexRedisAdapter.MixProject do
       # Testing
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
-        credo: :test,
-        dialyzer: :test,
+        check: :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -44,23 +44,17 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp deps do
     [
-      {:redix, "~> 0.11"},
-
-      # This is because the adapter tests need some support modules and shared
-      # tests from nebulex dependency, and the hex dependency doesn't include
-      # the test folder. Hence, to run the tests it is necessary to fetch
-      # nebulex dependency directly from GH.
-      {:nebulex, nebulex_dep()},
-      {:nebulex_cluster, github: "cabol/nebulex_cluster"},
-      {:crc, "~> 0.9"},
+      nebulex_dep(),
+      {:redix, "~> 1.0"},
+      {:crc, "~> 0.10", optional: true},
       {:jchash, "~> 0.1.2", optional: true},
 
       # Test & Code Analysis
+      {:benchee, "~> 1.0", only: :test},
+      {:benchee_html, "~> 1.0", only: :test},
       {:excoveralls, "~> 0.13", only: :test},
-      {:benchee, "~> 1.0", optional: true, only: :dev},
-      {:benchee_html, "~> 1.0", optional: true, only: :dev},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.4", only: [:dev, :test]},
+      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
 
       # Docs
       {:ex_doc, "~> 0.23", only: [:dev, :test], runtime: false},
@@ -70,11 +64,26 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp nebulex_dep do
     if System.get_env("NBX_TEST") do
-      # [github: "cabol/nebulex", tag: "v1.1.1", override: true]
-      [github: "cabol/nebulex", branch: "master", override: true]
+      # This is because the adapter tests need some support modules and shared
+      # tests from nebulex dependency, and the hex dependency doesn't include
+      # the test folder. Hence, to run the tests it is necessary to fetch
+      # nebulex dependency directly from GH.
+      {:nebulex, github: "cabol/nebulex", tag: "v2.0.0-rc.1"}
     else
-      "~> 1.1"
+      {:nebulex, "~> 2.0.0-rc.1"}
     end
+  end
+
+  defp aliases do
+    [
+      check: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "credo --strict",
+        "coveralls.html",
+        "dialyzer --format short"
+      ]
+    ]
   end
 
   defp package do
@@ -97,7 +106,7 @@ defmodule NebulexRedisAdapter.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:nebulex, :jchash],
+      plt_add_apps: [:nebulex, :crc, :jchash],
       plt_file: {:no_warn, "priv/plts/" <> plt_file_name()},
       flags: [
         :unmatched_returns,

@@ -10,7 +10,6 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Standalone,
 # Redis test cache
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
   mode: :cluster,
-  keyslot: NebulexRedisAdapter.TestCache.Keyslot,
   nodes: [
     node1: [
       conn_opts: [

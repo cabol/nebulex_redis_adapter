@@ -2,9 +2,45 @@ defmodule NebulexRedisAdapter.RedisCluster do
   # Redis Cluster Manager
   @moduledoc false
 
-  alias NebulexCluster.Pool
-  alias NebulexRedisAdapter.Connection
-  alias NebulexRedisAdapter.RedisCluster.NodeSupervisor
+  if Code.ensure_loaded?(CRC) do
+    defmodule Keyslot do
+      @moduledoc false
+      use Nebulex.Adapter.Keyslot
+
+      import NebulexRedisAdapter.Encoder
+
+      @impl true
+      def hash_slot("{" <> hash_tags = key, range) do
+        case String.split(hash_tags, "}") do
+          [key, _] -> do_hash_slot(key, range)
+          _ -> do_hash_slot(key, range)
+        end
+      end
+
+      def hash_slot(key, range) when is_binary(key) do
+        do_hash_slot(key, range)
+      end
+
+      def hash_slot(key, range) do
+        key
+        |> encode()
+        |> do_hash_slot(range)
+      end
+
+      defp do_hash_slot(key, range) do
+        :crc_16_xmodem
+        |> CRC.crc(key)
+        |> rem(range)
+      end
+    end
+  else
+    defmodule Keyslot do
+      @moduledoc false
+      use Nebulex.Adapter.Keyslot
+    end
+  end
+
+  alias NebulexRedisAdapter.{Connection, Pool}
 
   @compile {:inline, cluster_slots_tab: 1}
 
@@ -41,35 +77,14 @@ defmodule NebulexRedisAdapter.RedisCluster do
           |> :ets.insert({name, start, stop, sup_name})
 
         # define child spec
-        Supervisor.child_spec({NodeSupervisor, opts},
+        Supervisor.child_spec(
+          {NebulexRedisAdapter.RedisCluster.Supervisor, opts},
           type: :supervisor,
           id: {Redix, {start, stop}}
         )
       end
 
     {:ok, children}
-  end
-
-  @spec get_conn(Nebulex.Adapter.adapter_meta(), {:"$hash_slot", any} | any) :: atom
-  def get_conn(%{name: name, pool_size: pool_size}, {:"$hash_slot", _} = key) do
-    get_conn(name, pool_size, key)
-  end
-
-  def get_conn(%{name: name, pool_size: pool_size, keyslot: keyslot}, key) do
-    get_conn(name, pool_size, hash_slot(key, keyslot))
-  end
-
-  defp get_conn(name, pool_size, {:"$hash_slot", hash_slot}) do
-    name
-    |> cluster_slots_tab()
-    |> :ets.lookup(name)
-    |> Enum.reduce_while(nil, fn
-      {_, start, stop, name}, _acc when hash_slot >= start and hash_slot <= stop ->
-        {:halt, Pool.get_conn(name, pool_size)}
-
-      _, acc ->
-        {:cont, acc}
-    end)
   end
 
   @spec exec!(
@@ -93,6 +108,28 @@ defmodule NebulexRedisAdapter.RedisCluster do
       |> Pool.get_conn(pool_size)
       |> Redix.command!(command)
       |> reducer.(acc)
+    end)
+  end
+
+  @spec get_conn(Nebulex.Adapter.adapter_meta(), {:"$hash_slot", any} | any) :: atom
+  def get_conn(%{name: name, pool_size: pool_size}, {:"$hash_slot", _} = key) do
+    get_conn(name, pool_size, key)
+  end
+
+  def get_conn(%{name: name, pool_size: pool_size, keyslot: keyslot}, key) do
+    get_conn(name, pool_size, hash_slot(key, keyslot))
+  end
+
+  defp get_conn(name, pool_size, {:"$hash_slot", hash_slot}) do
+    name
+    |> cluster_slots_tab()
+    |> :ets.lookup(name)
+    |> Enum.reduce_while(nil, fn
+      {_, start, stop, name}, _acc when hash_slot >= start and hash_slot <= stop ->
+        {:halt, Pool.get_conn(name, pool_size)}
+
+      _, acc ->
+        {:cont, acc}
     end)
   end
 
@@ -155,36 +192,5 @@ defmodule NebulexRedisAdapter.RedisCluster do
       nil -> Redix.start_link(conn_opts)
       url -> Redix.start_link(url, name: :redix_cluster)
     end
-  end
-end
-
-defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
-  @moduledoc false
-  use Nebulex.Adapter.Keyslot
-
-  import NebulexRedisAdapter.Encoder
-
-  @impl true
-  def hash_slot("{" <> hash_tags = key, range) do
-    case String.split(hash_tags, "}") do
-      [key, _] -> do_hash_slot(key, range)
-      _ -> do_hash_slot(key, range)
-    end
-  end
-
-  def hash_slot(key, range) when is_binary(key) do
-    do_hash_slot(key, range)
-  end
-
-  def hash_slot(key, range) do
-    key
-    |> encode()
-    |> do_hash_slot(range)
-  end
-
-  defp do_hash_slot(key, range) do
-    :crc_16_xmodem
-    |> CRC.crc(key)
-    |> rem(range)
   end
 end

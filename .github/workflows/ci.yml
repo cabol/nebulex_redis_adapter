@@ -12,6 +12,7 @@ jobs:
   nebulex_test:
     name: 'NebulexRedisAdapter Test (Elixir ${{ matrix.elixir }} OTP ${{ matrix.otp }})'
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         include:
@@ -26,14 +27,17 @@ jobs:
       MIX_ENV: test
       NBX_TEST: true
       REDIS_CLUSTER_IP: '0.0.0.0'
+
     steps:
       - uses: actions/checkout@v2
+
       - name: Start Redis
         run: docker-compose up -d
       - uses: actions/setup-elixir@v1
         with:
           otp-version: '${{ matrix.otp }}'
           elixir-version: '${{ matrix.elixir }}'
+
       - uses: actions/cache@v1
         with:
           path: deps
@@ -42,6 +46,7 @@ jobs:
             hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-
+
       - uses: actions/cache@v1
         with:
           path: _build
@@ -50,25 +55,33 @@ jobs:
             hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-
+
       - name: Install Dependencies
-        run: mix deps.get
-      - name: Compile Code
-        run: mix compile --warnings-as-errors
-      - name: Check Format
-        run: mix format --check-formatted
-      - name: Check Style
-        run: mix credo --strict
-      - name: Run Tests
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Run style and code consistency checks
+        run: |
+          mix compile --warnings-as-errors
+          mix format --check-formatted
+          mix credo --strict
+
+      - name: Run tests
         run: |
           epmd -daemon
           mix coveralls.github
+
       - uses: actions/cache@v1
         with:
           path: priv/plts
           key: '${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-v1'
           restore-keys: |
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-v1
-      - name: Run Dialyzer
+
+      - name: Run dialyzer
         run: mix dialyzer --format short
-      - name: Report Doc Coverage
+
+      - name: Doc Coverage Report
         run: MIX_ENV=docs mix inch.report
