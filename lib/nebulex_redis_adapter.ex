@@ -82,7 +82,7 @@ defmodule NebulexRedisAdapter do
 
   The config:
 
-      config :my_app, MayApp.RedisClusterCache,
+      config :my_app, MyApp.RedisClusterCache,
         mode: :redis_cluster,
         master_nodes: [
           [
@@ -136,24 +136,10 @@ defmodule NebulexRedisAdapter do
           adapter: NebulexRedisAdapter
       end
 
-  The Keyslot module using consistent hashing:
-
-      defmodule MyApp.ClusteredCache.Keyslot do
-        use Nebulex.Adapter.Keyslot
-
-        @impl true
-        def hash_slot(key, range) do
-          key
-          |> :erlang.phash2()
-          |> :jchash.compute(range)
-        end
-      end
-
   The config:
 
       config :my_app, MyApp.ClusteredCache,
         mode: :cluster,
-        keyslot: MyApp.ClusteredCache.Keyslot,
         nodes: [
           node1: [
             pool_size: 10,
@@ -174,6 +160,30 @@ defmodule NebulexRedisAdapter do
               port: 9003
             ]
           ]
+        ]
+
+  By default, the adapter uses `NebulexRedisAdapter.Cluster.Keyslot` for the
+  keyslot. Besides, if `:jchash` is defined as dependency, the adapter will use
+  consistent-hashing automatically. However, you can also provide your own
+  implementation by implementing the `Nebulex.Adapter.Keyslot` and set it into
+  the `:keyslot` option. For example:
+
+      defmodule MyApp.ClusteredCache.Keyslot do
+        use Nebulex.Adapter.Keyslot
+
+        @impl true
+        def hash_slot(key, range) do
+          # your implementation goes here
+        end
+      end
+
+  And the config:
+
+      config :my_app, MyApp.ClusteredCache,
+        mode: :cluster,
+        keyslot: MyApp.ClusteredCache.Keyslot,
+        nodes: [
+          ...
         ]
 
   ### Client-side cluster options
@@ -257,9 +267,6 @@ defmodule NebulexRedisAdapter do
   in case you are using a dynamic cache and you have to pass the cache name
   explicitly.
   """
-
-  # Inherit default keyslot implementation
-  use Nebulex.Adapter.Keyslot
 
   # Provide Cache Implementation
   @behaviour Nebulex.Adapter
@@ -349,14 +356,12 @@ defmodule NebulexRedisAdapter do
 
   defp do_init(:standalone, name, pool_size, opts) do
     {:ok, children} = Connection.init(name, pool_size, opts)
-    {children, __MODULE__}
+    {children, Cluster.Keyslot}
   end
 
   defp do_init(:cluster, _name, _pool_size, opts) do
-    {:ok, children} =
-      NebulexCluster.init([connection_module: NebulexRedisAdapter.Connection] ++ opts)
-
-    {children, __MODULE__}
+    {:ok, children} = Cluster.init(opts)
+    {children, Cluster.Keyslot}
   end
 
   defp do_init(:redis_cluster, name, pool_size, opts) do

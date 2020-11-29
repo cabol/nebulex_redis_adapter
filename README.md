@@ -25,10 +25,20 @@ Add `nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:nebulex_redis_adapter, "~> 1.1"}
+    {:nebulex_redis_adapter, "~> 2.0.0-rc.1"},
+    {:crc, "~> 0.10"},    #=> Needed when using Redis Cluster
+    {:jchash, "~> 0.1.2"} #=> NNeeded when using consistent-hashing
   ]
 end
 ```
+
+In order to give more flexibility and loading only needed dependencies, this
+adapter makes all its dependencies as optional. For example:
+
+  * `:crc` - Required when using the adapter in mode `:redis_cluster`.
+    See [Redis Cluster](https://redis.io/topics/cluster-tutorial).
+  * `:jchash` - Required if you want to use consistent-hashing when using the
+    adapter in mode `:cluster`.
 
 Then run `mix deps.get` in your shell to fetch the dependencies.
 
@@ -92,7 +102,7 @@ end
 The config:
 
 ```elixir
-config :my_app, MayApp.RedisClusterCache,
+config :my_app, MyApp.RedisClusterCache,
   # Enable redis_cluster mode
   mode: :redis_cluster,
 
@@ -138,30 +148,12 @@ defmodule MyApp.ClusteredCache do
 end
 ```
 
-The Keyslot module using consistent hashing:
+The config:
 
 ```elixir
-defmodule MyApp.ClusteredCache.Keyslot do
-  use Nebulex.Adapter.Keyslot
-
-  @impl true
-  def hash_slot(key, range) do
-    key
-    |> :erlang.phash2()
-    |> :jchash.compute(range)
-  end
-end
-```
-
-And then, within the config:
-
-```elixir
-config :my_app, MayApp.ClusteredCache,
+config :my_app, MyApp.ClusteredCache,
   # Enable client-side cluster mode
   mode: :cluster,
-
-  # Keyslot with consistent hashing
-  keyslot: MyApp.ClusteredCache.Keyslot,
 
   # Nodes config (each node has its own options)
   nodes: [
@@ -191,11 +183,42 @@ config :my_app, MayApp.ClusteredCache,
   ]
 ```
 
-> **NOTE:** It is highly recommendable to provide a consistent hashing
-  implementation for `Nebulex.Adapter.Keyslot`.
+By default, the adapter uses `NebulexRedisAdapter.Cluster.Keyslot` for the
+keyslot. Besides, if `:jchash` is defined as dependency, the adapter will use
+consistent-hashing automatically.
 
-That's all, the rest of the work is done by **NebulexRedisAdapter**
-automatically.
+> **NOTE:** It is highly recommended to define the `:jchash` dependency
+  when using the adapter in `:cluster` mode.
+
+However, you can also provide your own implementation by implementing the
+`Nebulex.Adapter.Keyslot` and set it into the `:keyslot` option. For example:
+
+```elixir
+defmodule MyApp.ClusteredCache.Keyslot do
+  use Nebulex.Adapter.Keyslot
+
+  @impl true
+  def hash_slot(key, range) do
+    # your implementation goes here
+  end
+end
+```
+
+And the config:
+
+```elixir
+config :my_app, MyApp.ClusteredCache,
+  # Enable client-side cluster mode
+  mode: :cluster,
+
+  # Provided Keyslot implementation
+  keyslot: MyApp.ClusteredCache.Keyslot,
+
+  # Nodes config (each node has its own options)
+  nodes: [
+    ...
+  ]
+```
 
 ### Using `Nebulex.Adapters.Dist`
 
@@ -311,7 +334,7 @@ to learn more, see the [benchmarks](./benchmarks) directory.
 To run the benchmarks:
 
 ```
-$ mix deps.get && mix run benchmarks/benchmark.exs
+$ MIX_ENV=test mix run benchmarks/benchmark.exs
 ```
 
 > Benchmarks use default Redis options (`host: "127.0.0.1", port: 6379`).
@@ -329,16 +352,8 @@ When submitting a pull request you should not update the [CHANGELOG.md](CHANGELO
 and also make sure you test your changes thoroughly, include unit tests
 alongside new or changed code.
 
-Before to submit a PR it is highly recommended to run:
-
- * `export NBX_TEST=true` to fetch Nebulex from GH directly and be able to
-   re-use shared tests.
- * `mix coveralls.html && open cover/excoveralls.html` to run tests and check
-   out code coverage (expected 100%).
- * `mix format && mix credo --strict` to format your code properly and find code
-   style issues
- * `mix dialyzer` to run dialyzer for type checking; might take a while on the
-   first invocation
+Before to submit a PR it is highly recommended to run `mix check` and ensure
+all checks run successfully.
 
 ## Copyright and License
 

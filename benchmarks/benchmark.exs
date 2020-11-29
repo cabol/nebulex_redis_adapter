@@ -14,7 +14,7 @@ keys = Enum.to_list(1..10_000)
 bulk = for x <- 1..100, do: {x, x}
 
 # init caches
-Enum.each(1..5000, &BenchCache.set(&1, &1))
+Enum.each(1..5000, &BenchCache.put(&1, &1))
 
 inputs = %{
   "Redis Cache" => BenchCache
@@ -24,23 +24,20 @@ benchmarks = %{
   "get" => fn {cache, random} ->
     cache.get(random)
   end,
-  "set" => fn {cache, random} ->
-    cache.set(random, random)
+  "get_all" => fn {cache, _random} ->
+    cache.get_all([1, 2, 3, 4, 5, 6, 7, 8, 9])
   end,
-  "add" => fn {cache, random} ->
-    cache.add(random, random)
+  "put" => fn {cache, random} ->
+    cache.put(random, random)
+  end,
+  "put_new" => fn {cache, random} ->
+    cache.put_new(random, random)
   end,
   "replace" => fn {cache, random} ->
     cache.replace(random, random)
   end,
-  "add_or_replace!" => fn {cache, random} ->
-    cache.add_or_replace!(random, random)
-  end,
-  "get_many" => fn {cache, _random} ->
-    cache.get_many([1, 2, 3, 4, 5, 6, 7, 8, 9])
-  end,
-  "set_many" => fn {cache, _random} ->
-    cache.set_many(bulk)
+  "put_all" => fn {cache, _random} ->
+    cache.put_all(bulk)
   end,
   "delete" => fn {cache, random} ->
     cache.delete(random)
@@ -54,11 +51,17 @@ benchmarks = %{
   "size" => fn {cache, _random} ->
     cache.size()
   end,
-  "object_info" => fn {cache, random} ->
-    cache.object_info(random, :ttl)
+  "ttl" => fn {cache, random} ->
+    cache.ttl(random)
   end,
   "expire" => fn {cache, random} ->
-    cache.expire(random, 1)
+    cache.expire(random, 1000)
+  end,
+  "incr" => fn {cache, _random} ->
+    cache.incr(:counter, 1)
+  end,
+  "update" => fn {cache, random} ->
+    cache.update(random, 1, &Kernel.+(&1, 1))
   end,
   "get_and_update" => fn {cache, random} ->
     cache.get_and_update(random, fn
@@ -66,23 +69,8 @@ benchmarks = %{
       val -> {val, val * 2}
     end)
   end,
-  "update" => fn {cache, random} ->
-    cache.update(random, 1, &Kernel.+(&1, 1))
-  end,
-  "update_counter" => fn {cache, _random} ->
-    cache.update_counter(:counter, 1)
-  end,
   "all" => fn {cache, _random} ->
     cache.all()
-  end,
-  "transaction" => fn {cache, random} ->
-    cache.transaction(
-      fn ->
-        cache.update(random, 1, &Kernel.+(&1, 1))
-        :ok
-      end,
-      keys: [random]
-    )
   end
 }
 
@@ -92,18 +80,9 @@ Benchee.run(
   before_scenario: fn cache ->
     {cache, Enum.random(keys)}
   end,
-  console: [
-    comparison: false,
-    extended_statistics: true
-  ],
   formatters: [
-    Benchee.Formatters.Console,
-    Benchee.Formatters.HTML
-  ],
-  formatter_options: [
-    html: [
-      auto_open: false
-    ]
+    {Benchee.Formatters.Console, comparison: false, extended_statistics: true},
+    {Benchee.Formatters.HTML, extended_statistics: true, auto_open: false}
   ],
   print: [
     fast_warning: false
@@ -111,4 +90,4 @@ Benchee.run(
 )
 
 # stop caches s
-if Process.alive?(local), do: BenchCache.stop(local)
+if Process.alive?(local), do: Supervisor.stop(local)
