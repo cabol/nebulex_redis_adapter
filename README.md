@@ -12,10 +12,11 @@ a Redis driver for Elixir.
 The adapter supports different configurations modes which are explained in the
 next sections.
 
-You can also check the [online documentation][nebulex_redis_adapter] to learn
-more about it.
+See also [online documentation][nbx_redis_adapter]
+and [Redis cache example][nbx_redis_example].
 
-[nebulex_redis_adapter]: http://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html
+[nbx_redis_adapter]: http://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html
+[nbx_redis_example]: https://github.com/cabol/nebulex_examples/tree/master/redis_cache
 
 ## Installation
 
@@ -69,6 +70,8 @@ Since this adapter is implemented by means of `Redix`, it inherits the same
 options, including regular Redis options and connection options as well. For
 more information about the options, please check out `NebulexRedisAdapter`
 module and also [Redix](https://github.com/whatyouhide/redix).
+
+See also [Redis cache example][nbx_redis_example].
 
 ## Distributed Caching
 
