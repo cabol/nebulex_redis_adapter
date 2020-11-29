@@ -82,6 +82,3 @@ jobs:
 
       - name: Run dialyzer
         run: mix dialyzer --format short
-
-      - name: Doc Coverage Report
-        run: MIX_ENV=docs mix inch.report

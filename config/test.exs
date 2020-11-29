@@ -1,13 +1,13 @@
-use Mix.Config
+import Config
 
-# Redis Standalone
+# Standalone mode
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Standalone,
   conn_opts: [
     host: "127.0.0.1",
     port: 6379
   ]
 
-# Redis test cache
+# Cluster mode
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
   mode: :cluster,
   nodes: [
@@ -31,7 +31,7 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
     ]
   ]
 
-# Redis test clustered cache
+# Redis Cluster mode
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisCluster,
   mode: :redis_cluster,
   master_nodes: [
@@ -50,7 +50,7 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisCluster,
     host: "127.0.0.1"
   ]
 
-# Redis test clustered cache
+# Redis Cluster mode with errors
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterConnError,
   mode: :redis_cluster,
   pool_size: 2,
@@ -64,7 +64,7 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterConnErr
     host: "127.0.0.1"
   ]
 
-# Redis test clustered cache
+# Redis Cluster mode with custom Keyslot
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterWithKeyslot,
   mode: :redis_cluster,
   keyslot: NebulexRedisAdapter.TestCache.Keyslot,

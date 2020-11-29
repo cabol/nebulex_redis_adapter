@@ -3,7 +3,6 @@
 
 ![CI](https://github.com/cabol/nebulex_redis_adapter/workflows/CI/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/cabol/nebulex_redis_adapter/badge.svg?branch=master)](https://coveralls.io/github/cabol/nebulex_redis_adapter?branch=master)
-[![Inline docs](http://inch-ci.org/github/cabol/nebulex_redis_adapter.svg)](http://inch-ci.org/github/cabol/nebulex_redis_adapter)
 [![Hex Version](https://img.shields.io/hexpm/v/nebulex_redis_adapter.svg)](https://hex.pm/packages/nebulex_redis_adapter)
 [![Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/nebulex_redis_adapter)
 
@@ -27,7 +26,7 @@ defp deps do
   [
     {:nebulex_redis_adapter, "~> 2.0.0-rc.1"},
     {:crc, "~> 0.10"},    #=> Needed when using Redis Cluster
-    {:jchash, "~> 0.1.2"} #=> NNeeded when using consistent-hashing
+    {:jchash, "~> 0.1.2"} #=> Needed when using consistent-hashing
   ]
 end
 ```

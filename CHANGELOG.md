@@ -1,19 +1,43 @@
 # Changelog
 
+## [v2.0.0-rc.1](https://github.com/cabol/nebulex_redis_adapter/tree/v2.0.0-rc.1) (2020-11-29)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v1.1.1...v2.0.0-rc.1)
+
+**Closed issues:**
+
+- Compatiblity with nebulex v2.0.0 [#21](https://github.com/cabol/nebulex_redis_adapter/issues/21)
+- Update redix dependency version to `~> 0.11` [#19](https://github.com/cabol/nebulex_redis_adapter/issues/19)
+- Change redis address is invalid [#14](https://github.com/cabol/nebulex_redis_adapter/issues/14)
+
+**Merged pull requests:**
+
+- Overall fixes and enhancements [#24](https://github.com/cabol/nebulex_redis_adapter/pull/24)
+  ([cabol](https://github.com/cabol))
+- Migrate to Nebulex v2 [#23](https://github.com/cabol/nebulex_redis_adapter/pull/23)
+  ([cabol](https://github.com/cabol))
+- Fix a small typo in readme [#22](https://github.com/cabol/nebulex_redis_adapter/pull/22)
+  ([manusajith](https://github.com/manusajith))
+- [#19] redix `~> 0.11` [#20](https://github.com/cabol/nebulex_redis_adapter/pull/20)
+  ([diogommartins](https://github.com/diogommartins))
+
 ## [v1.1.1](https://github.com/cabol/nebulex_redis_adapter/tree/v1.1.1) (2020-01-25)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v1.1.0...v1.1.1)
 
 **Closed issues:**
 
-- jchash.start undefined function [\#13](https://github.com/cabol/nebulex_redis_adapter/issues/13)
-- Can you release? [\#12](https://github.com/cabol/nebulex_redis_adapter/issues/12)
+- `jchash.start` undefined function [#13](https://github.com/cabol/nebulex_redis_adapter/issues/13)
+- Can you release? [#12](https://github.com/cabol/nebulex_redis_adapter/issues/12)
 
 **Merged pull requests:**
 
-- Compression of data in Redis [\#18](https://github.com/cabol/nebulex_redis_adapter/pull/18) ([vovayartsev](https://github.com/vovayartsev))
-- Replaced the redis FLUSHALL command by FLUSHDB [\#17](https://github.com/cabol/nebulex_redis_adapter/pull/17) ([Atlas42](https://github.com/Atlas42))
-- \[\#15\] Allow storing raw strings, not the whole `Nebulex.Object.t\(\)` [\#16](https://github.com/cabol/nebulex_redis_adapter/pull/16) ([cabol](https://github.com/cabol))
+- Compression of data in Redis [#18](https://github.com/cabol/nebulex_redis_adapter/pull/18)
+  ([vovayartsev](https://github.com/vovayartsev))
+- Replaced the redis FLUSHALL command by FLUSHDB [#17](https://github.com/cabol/nebulex_redis_adapter/pull/17)
+  ([Atlas42](https://github.com/Atlas42))
+- [#15] Allow storing raw strings, not the whole `Nebulex.Object.t()`
+  [#16](https://github.com/cabol/nebulex_redis_adapter/pull/16) ([cabol](https://github.com/cabol))
 
 ## [v1.1.0](https://github.com/cabol/nebulex_redis_adapter/tree/v1.1.0) (2019-05-11)
 
@@ -21,15 +45,15 @@
 
 **Implemented enhancements:**
 
-- Default cluster support [\#10](https://github.com/cabol/nebulex_redis_adapter/issues/10)
+- Default cluster support [#10](https://github.com/cabol/nebulex_redis_adapter/issues/10)
 
 **Closed issues:**
 
-- Redis Clustering on Redis 4+ without Sentinel [\#8](https://github.com/cabol/nebulex_redis_adapter/issues/8)
+- Redis Clustering on Redis 4+ without Sentinel [#8](https://github.com/cabol/nebulex_redis_adapter/issues/8)
 
 **Merged pull requests:**
 
-- Cluster Support [\#11](https://github.com/cabol/nebulex_redis_adapter/pull/11) ([cabol](https://github.com/cabol))
+- Cluster Support [#11](https://github.com/cabol/nebulex_redis_adapter/pull/11) ([cabol](https://github.com/cabol))
 
 ## [v1.0.0](https://github.com/cabol/nebulex_redis_adapter/tree/v1.0.0) (2018-12-12)
 
@@ -37,9 +61,9 @@
 
 **Implemented enhancements:**
 
-- Add TravisCI support [\#7](https://github.com/cabol/nebulex_redis_adapter/issues/7)
-- Implement `Nebulex.Adapter.Transaction` interface [\#2](https://github.com/cabol/nebulex_redis_adapter/issues/2)
-- Implement `Nebulex.Adapter.Queryable` behaviour [\#1](https://github.com/cabol/nebulex_redis_adapter/issues/1)
+- Add TravisCI support [#7](https://github.com/cabol/nebulex_redis_adapter/issues/7)
+- Implement `Nebulex.Adapter.Transaction` interface [#2](https://github.com/cabol/nebulex_redis_adapter/issues/2)
+- Implement `Nebulex.Adapter.Queryable` behaviour [#1](https://github.com/cabol/nebulex_redis_adapter/issues/1)
 
 
 

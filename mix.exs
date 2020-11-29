@@ -1,7 +1,7 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "2.0.0-dev"
+  @version "2.0.0-rc.1"
 
   def project do
     [
@@ -50,15 +50,16 @@ defmodule NebulexRedisAdapter.MixProject do
       {:jchash, "~> 0.1.2", optional: true},
 
       # Test & Code Analysis
-      {:benchee, "~> 1.0", only: :test},
-      {:benchee_html, "~> 1.0", only: :test},
       {:excoveralls, "~> 0.13", only: :test},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
 
+      # Benchmark Test
+      {:benchee, "~> 1.0", only: :test},
+      {:benchee_html, "~> 1.0", only: :test},
+
       # Docs
-      {:ex_doc, "~> 0.23", only: [:dev, :test], runtime: false},
-      {:inch_ex, "~> 2.0", only: :docs}
+      {:ex_doc, "~> 0.23", only: [:dev, :test], runtime: false}
     ]
   end
 
