@@ -270,6 +270,7 @@ defmodule NebulexRedisAdapter do
 
   # Provide Cache Implementation
   @behaviour Nebulex.Adapter
+  @behaviour Nebulex.Adapter.Entry
   @behaviour Nebulex.Adapter.Queryable
 
   import Nebulex.Helpers
@@ -278,7 +279,7 @@ defmodule NebulexRedisAdapter do
   alias Nebulex.Adapter
   alias NebulexRedisAdapter.{Cluster, Command, Connection, RedisCluster}
 
-  ## Adapter
+  ## Nebulex.Adapter
 
   @impl true
   defmacro __before_compile__(_env) do
@@ -316,6 +317,7 @@ defmodule NebulexRedisAdapter do
       get_option(
         opts,
         :pool_size,
+        "an integer > 0",
         &(is_integer(&1) and &1 > 0),
         System.schedulers_online()
       )
@@ -368,6 +370,8 @@ defmodule NebulexRedisAdapter do
     {:ok, children} = RedisCluster.init(name, pool_size, opts)
     {children, RedisCluster.Keyslot}
   end
+
+  ## Nebulex.Adapter.Entry
 
   @impl true
   def get(adapter_meta, key, _opts) do
@@ -512,34 +516,51 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def incr(adapter_meta, key, incr, :infinity, _opts) do
-    Command.exec!(adapter_meta, ["INCRBY", encode(key), incr], key)
-  end
-
-  def incr(adapter_meta, key, incr, ttl, _opts) do
+  def update_counter(adapter_meta, key, incr, :infinity, default, _opts) do
     redis_k = encode(key)
 
     adapter_meta
+    |> maybe_incr_default(key, redis_k, default)
+    |> Command.exec!(["INCRBY", redis_k, incr], key)
+  end
+
+  def update_counter(adapter_meta, key, incr, ttl, default, _opts) do
+    redis_k = encode(key)
+
+    adapter_meta
+    |> maybe_incr_default(key, redis_k, default)
     |> Command.pipeline!([["INCRBY", redis_k, incr], ["EXPIRE", redis_k, fix_ttl(ttl)]], key)
     |> hd()
   end
 
+  defp maybe_incr_default(adapter_meta, key, redis_k, default)
+       when is_integer(default) and default > 0 do
+    case Command.exec!(adapter_meta, ["EXISTS", redis_k], key) do
+      1 ->
+        adapter_meta
+
+      0 ->
+        _ = Command.exec!(adapter_meta, ["INCRBY", redis_k, default], key)
+        adapter_meta
+    end
+  end
+
+  defp maybe_incr_default(adapter_meta, _, _, _), do: adapter_meta
+
+  ## Nebulex.Adapter.Queryable
+
   @impl true
-  def size(%{mode: mode} = adapter_meta) do
+  def execute(%{mode: mode} = adapter_meta, :count_all, nil, _opts) do
     exec!(mode, [adapter_meta, ["DBSIZE"]], [0, &Kernel.+(&2, &1)])
   end
 
-  @impl true
-  def flush(%{mode: mode} = adapter_meta) do
-    size = size(adapter_meta)
+  def execute(%{mode: mode} = adapter_meta, :delete_all, nil, _opts) do
+    size = exec!(mode, [adapter_meta, ["DBSIZE"]], [0, &Kernel.+(&2, &1)])
     _ = exec!(mode, [adapter_meta, ["FLUSHDB"]], [])
     size
   end
 
-  ## Queryable
-
-  @impl true
-  def all(adapter_meta, query, _opts) do
+  def execute(adapter_meta, :all, query, _opts) do
     execute_query(query, adapter_meta)
   end
 

@@ -48,9 +48,6 @@ benchmarks = %{
   "has_key?" => fn {cache, random} ->
     cache.has_key?(random)
   end,
-  "size" => fn {cache, _random} ->
-    cache.size()
-  end,
   "ttl" => fn {cache, random} ->
     cache.ttl(random)
   end,
@@ -71,6 +68,9 @@ benchmarks = %{
   end,
   "all" => fn {cache, _random} ->
     cache.all()
+  end,
+  "count_all" => fn {cache, _random} ->
+    cache.count_all()
   end
 }
 

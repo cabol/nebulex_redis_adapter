@@ -16,5 +16,5 @@ erl_crash.dump
 ._*
 .elixir*
 .vs*
-mix.lock
 /priv
+/nebulex

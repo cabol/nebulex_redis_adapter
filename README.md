@@ -1,5 +1,5 @@
 # NebulexRedisAdapter
-> ### Nebulex adapter for Redis with cluster support.
+> Nebulex adapter for Redis with cluster support.
 
 ![CI](https://github.com/cabol/nebulex_redis_adapter/workflows/CI/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/cabol/nebulex_redis_adapter/badge.svg?branch=master)](https://coveralls.io/github/cabol/nebulex_redis_adapter?branch=master)
@@ -299,34 +299,43 @@ $ docker-compose up
 [docker]: https://www.docker.com/
 [docker_compose]: https://docs.docker.com/compose/
 
-Since **NebulexRedisAdapter** uses the support modules and shared tests from
-**Nebulex** and by default its `test` folder is not included within the `hex`
-dependency, it is necessary to fetch `:nebulex` dependency directly from GtiHub.
-This is done by setting the environment variable `NBX_TEST`, like so:
+Since `NebulexRedisAdapter` uses the support modules and shared tests
+from `Nebulex` and by default its test folder is not included in the Hex
+dependency, the following steps are required for running the tests.
+
+First of all, make sure you set the environment variable `NEBULEX_PATH`
+to `nebulex`:
 
 ```
-$ export NBX_TEST=true
+export NEBULEX_PATH=nebulex
 ```
 
-Fetch deps:
+Second, make sure you fetch `:nebulex` dependency directly from GtiHub
+by running:
 
 ```
-$ mix deps.get
+mix nbx.setup
 ```
 
-Now we can run the tests:
+Third, fetch deps:
 
 ```
-$ mix test
+mix deps.get
+```
+
+Finally, you can run the tests:
+
+```
+mix test
 ```
 
 Running tests with coverage:
 
 ```
-$ mix coveralls.html
+mix coveralls.html
 ```
 
-You can find the coverage report within `cover/excoveralls.html`.
+You will find the coverage report within `cover/excoveralls.html`.
 
 ## Benchmarks
 

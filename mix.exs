@@ -1,7 +1,9 @@
 defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
-  @version "2.0.0-rc.1"
+  @source_url "https://github.com/cabol/nebulex_redis_adapter"
+  @version "2.0.0-rc.2"
+  @nbx_vsn "2.0.0-rc.2"
 
   def project do
     [
@@ -51,8 +53,8 @@ defmodule NebulexRedisAdapter.MixProject do
 
       # Test & Code Analysis
       {:excoveralls, "~> 0.13", only: :test},
-      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
 
       # Benchmark Test
       {:benchee, "~> 1.0", only: :test},
@@ -64,19 +66,20 @@ defmodule NebulexRedisAdapter.MixProject do
   end
 
   defp nebulex_dep do
-    if System.get_env("NBX_TEST") do
-      # This is because the adapter tests need some support modules and shared
-      # tests from nebulex dependency, and the hex dependency doesn't include
-      # the test folder. Hence, to run the tests it is necessary to fetch
-      # nebulex dependency directly from GH.
-      {:nebulex, github: "cabol/nebulex", tag: "v2.0.0-rc.1"}
+    if path = System.get_env("NEBULEX_PATH") do
+      {:nebulex, "~> #{@nbx_vsn}", path: path}
     else
-      {:nebulex, "~> 2.0.0-rc.1"}
+      # {:nebulex, "~> #{@nbx_vsn}"}
+      {:nebulex, github: "cabol/nebulex"}
     end
   end
 
   defp aliases do
     [
+      "nbx.setup": [
+        "cmd rm -rf nebulex",
+        "cmd git clone --depth 1 --branch master https://github.com/cabol/nebulex"
+      ],
       check: [
         "compile --warnings-as-errors",
         "format --check-formatted",
@@ -92,7 +95,7 @@ defmodule NebulexRedisAdapter.MixProject do
       name: :nebulex_redis_adapter,
       maintainers: ["Carlos Bolanos"],
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/cabol/nebulex_redis_adapter"}
+      links: %{"GitHub" => @source_url}
     ]
   end
 
@@ -101,7 +104,7 @@ defmodule NebulexRedisAdapter.MixProject do
       main: "NebulexRedisAdapter",
       source_ref: "v#{@version}",
       canonical: "http://hexdocs.pm/nebulex_redis_adapter",
-      source_url: "https://github.com/cabol/nebulex_redis_adapter"
+      source_url: @source_url
     ]
   end
 

@@ -4,7 +4,7 @@ defmodule NebulexRedisAdapter.Cache.QueryableTest do
   deftests "queryable" do
     import Nebulex.CacheHelpers
 
-    test "all", %{cache: cache} do
+    test "all/2", %{cache: cache} do
       set1 = cache_put(cache, 1..50)
       set2 = cache_put(cache, 51..100)
 
@@ -20,7 +20,7 @@ defmodule NebulexRedisAdapter.Cache.QueryableTest do
       assert :lists.usort(cache.all()) == expected
     end
 
-    test "stream", %{cache: cache} do
+    test "stream/2", %{cache: cache} do
       entries = for x <- 1..10, into: %{}, do: {x, x * 2}
       assert cache.put_all(entries) == :ok
 
@@ -39,7 +39,7 @@ defmodule NebulexRedisAdapter.Cache.QueryableTest do
       end
     end
 
-    test "all and stream with key pattern", %{cache: cache} do
+    test "all/2 and stream/2 with key pattern", %{cache: cache} do
       cache.put_all(%{
         "firstname" => "Albert",
         "lastname" => "Einstein",
@@ -61,6 +61,14 @@ defmodule NebulexRedisAdapter.Cache.QueryableTest do
 
       assert %{"firstname" => "Albert", "lastname" => "Einstein"} ==
                "**name**" |> cache.all() |> cache.get_all()
+    end
+
+    test "delete_all/2", %{cache: cache} do
+      :ok = cache.put_all(a: 1, b: 2, c: 3)
+
+      assert cache.count_all() == 3
+      assert cache.delete_all() == 3
+      assert cache.count_all() == 0
     end
   end
 end

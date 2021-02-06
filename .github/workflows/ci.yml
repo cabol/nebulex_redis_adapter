@@ -16,16 +16,21 @@ jobs:
     strategy:
       matrix:
         include:
+          - elixir: 1.11.x
+            otp: 23.x
+            coverage: true
+            dialyzer: true
           - elixir: 1.10.x
             otp: 23.x
           - elixir: 1.10.x
             otp: 22.x
           - elixir: 1.9.x
             otp: 22.x
+
     env:
       GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
       MIX_ENV: test
-      NBX_TEST: true
+      NEBULEX_PATH: nebulex
       REDIS_CLUSTER_IP: '0.0.0.0'
 
     steps:
@@ -33,12 +38,16 @@ jobs:
 
       - name: Start Redis
         run: docker-compose up -d
-      - uses: actions/setup-elixir@v1
+
+      - name: Install OTP and Elixir
+        uses: actions/setup-elixir@v1.5.0
         with:
           otp-version: '${{ matrix.otp }}'
           elixir-version: '${{ matrix.elixir }}'
+          experimental-otp: true
 
-      - uses: actions/cache@v1
+      - name: Cache deps
+        uses: actions/cache@v1
         with:
           path: deps
           key: >-
@@ -47,7 +56,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-
 
-      - uses: actions/cache@v1
+      - name: Cache _build
+        uses: actions/cache@v1
         with:
           path: _build
           key: >-
@@ -60,6 +70,7 @@ jobs:
         run: |
           mix local.hex --force
           mix local.rebar --force
+          mix nbx.setup
           mix deps.get
 
       - name: Run style and code consistency checks
@@ -71,14 +82,23 @@ jobs:
       - name: Run tests
         run: |
           epmd -daemon
-          mix coveralls.github
+          mix test --trace
+        if: ${{!matrix.coverage}}
 
-      - uses: actions/cache@v1
+      - name: Run tests with coverage
+        run: |
+          epmd -daemon
+          mix coveralls.github
+        if: ${{matrix.coverage}}
+
+      - name: Cache PLT
+        uses: actions/cache@v1
         with:
           path: priv/plts
           key: '${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-v1'
           restore-keys: |
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-v1
 
-      - name: Run dialyzer
+      - name: Run static analysis checks
         run: mix dialyzer --format short
+        if: ${{matrix.dialyzer}}
