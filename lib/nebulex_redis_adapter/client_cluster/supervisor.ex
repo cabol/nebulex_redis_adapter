@@ -1,4 +1,4 @@
-defmodule NebulexRedisAdapter.Cluster.Supervisor do
+defmodule NebulexRedisAdapter.ClientCluster.Supervisor do
   @moduledoc false
   use Supervisor
 

@@ -2,7 +2,7 @@ defmodule NebulexRedisAdapter.Command do
   # Redix command executor
   @moduledoc false
 
-  alias NebulexRedisAdapter.{Cluster, Pool, RedisCluster}
+  alias NebulexRedisAdapter.{ClientCluster, Pool, RedisCluster}
 
   @spec exec!(
           Nebulex.Adapter.adapter_meta(),
@@ -48,12 +48,12 @@ defmodule NebulexRedisAdapter.Command do
     Pool.get_conn(name, pool_size)
   end
 
-  defp conn(%{mode: :cluster, name: name, nodes: nodes}, {:"$hash_slot", node_name}) do
-    Cluster.get_conn(name, nodes, node_name)
+  defp conn(%{mode: :client_side_cluster, name: name, nodes: nodes}, {:"$hash_slot", node_name}) do
+    ClientCluster.get_conn(name, nodes, node_name)
   end
 
-  defp conn(%{mode: :cluster, name: name, nodes: nodes, keyslot: keyslot}, key) do
-    Cluster.get_conn(name, nodes, key, keyslot)
+  defp conn(%{mode: :client_side_cluster, name: name, nodes: nodes, keyslot: keyslot}, key) do
+    ClientCluster.get_conn(name, nodes, key, keyslot)
   end
 
   defp conn(%{mode: :redis_cluster} = meta, key) do

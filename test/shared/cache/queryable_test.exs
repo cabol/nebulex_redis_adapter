@@ -2,7 +2,7 @@ defmodule NebulexRedisAdapter.Cache.QueryableTest do
   import Nebulex.CacheCase
 
   deftests "queryable" do
-    import Nebulex.CacheHelpers
+    import Nebulex.CacheCase
 
     test "all/2", %{cache: cache} do
       set1 = cache_put(cache, 1..50)

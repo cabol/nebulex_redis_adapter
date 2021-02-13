@@ -8,8 +8,8 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Standalone,
   ]
 
 # Cluster mode
-config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.Cluster,
-  mode: :cluster,
+config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.ClientCluster,
+  mode: :client_side_cluster,
   nodes: [
     node1: [
       conn_opts: [

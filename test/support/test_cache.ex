@@ -8,7 +8,7 @@ defmodule NebulexRedisAdapter.TestCache do
       adapter: NebulexRedisAdapter
   end
 
-  defmodule Cluster do
+  defmodule ClientCluster do
     @moduledoc false
     use Nebulex.Cache,
       otp_app: :nebulex_redis_adapter,

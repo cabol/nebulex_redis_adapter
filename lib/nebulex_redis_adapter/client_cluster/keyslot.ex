@@ -1,5 +1,7 @@
-defmodule NebulexRedisAdapter.Cluster.Keyslot do
-  @moduledoc false
+defmodule NebulexRedisAdapter.ClientCluster.Keyslot do
+  @moduledoc """
+  Default Keyslot implementation when `:jchash` module is loaded.
+  """
   use Nebulex.Adapter.Keyslot
 
   if Code.ensure_loaded?(:jchash) do

@@ -17,7 +17,7 @@ defmodule NebulexRedisAdapter do
 
     * **Built-in client-side cluster based on sharding** - This adapter
       provides a simple client-side cluster implementation based on
-      Sharding distribution model via `:cluster` mode.
+      Sharding distribution model via `:client_side_cluster` mode.
 
   ## Shared Options
 
@@ -25,8 +25,8 @@ defmodule NebulexRedisAdapter do
   following options:
 
     * `:mode` - Defines the mode Redis will be set up. It can be one of the
-      next values: `:standalone`, `:cluster`, `:redis_cluster`. Defaults to
-      `:standalone`.
+      next values: `:standalone`, `:client_side_cluster`, `:redis_cluster`.
+      Defaults to `:standalone`.
 
     * `:pool_size` - Number of connections in the pool. Defaults to
       `System.schedulers_online()`.
@@ -139,7 +139,7 @@ defmodule NebulexRedisAdapter do
   The config:
 
       config :my_app, MyApp.ClusteredCache,
-        mode: :cluster,
+        mode: :client_side_cluster,
         nodes: [
           node1: [
             pool_size: 10,
@@ -162,7 +162,7 @@ defmodule NebulexRedisAdapter do
           ]
         ]
 
-  By default, the adapter uses `NebulexRedisAdapter.Cluster.Keyslot` for the
+  By default, the adapter uses `NebulexRedisAdapter.ClientCluster.Keyslot` for the
   keyslot. Besides, if `:jchash` is defined as dependency, the adapter will use
   consistent-hashing automatically. However, you can also provide your own
   implementation by implementing the `Nebulex.Adapter.Keyslot` and set it into
@@ -180,7 +180,7 @@ defmodule NebulexRedisAdapter do
   And the config:
 
       config :my_app, MyApp.ClusteredCache,
-        mode: :cluster,
+        mode: :client_side_cluster,
         keyslot: MyApp.ClusteredCache.Keyslot,
         nodes: [
           ...
@@ -188,11 +188,11 @@ defmodule NebulexRedisAdapter do
 
   ### Client-side cluster options
 
-  In addition to shared options, `:cluster` mode supports the following
+  In addition to shared options, `:client_side_cluster` mode supports the following
   options:
 
     * `:nodes` - The list of nodes the adapter will setup the cluster with;
-      a pool of connections is established per node. The `:cluster` mode
+      a pool of connections is established per node. The `:client_side_cluster` mode
       enables resilience to be able to survive in case any node(s) gets
       unreachable. For each element of the list, we set the configuration
       for each node, such as `:conn_opts`, `:pool_size`, etc.
@@ -262,10 +262,27 @@ defmodule NebulexRedisAdapter do
       ...> ])
       [1, 2, ["hello", "world"]]
 
-  **NOTE:** The `key` is required when used the adapter in mode `:cluster` or
-  `:redis_cluster`, for `:standalone` no needed (optional). And the `name` is
-  in case you are using a dynamic cache and you have to pass the cache name
-  explicitly.
+  Arguments for `command!/3` and `pipeline!/3`:
+
+    * `key` - it is required when used the adapter in mode `:redis_cluster`
+      or `:client_side_cluster` so that the node where the commands will
+      take place can be selected properly. For `:standalone` it is optional.
+    * `name` - The name of the cache in case you are using dynamic caches,
+      otherwise it is not required.
+    * `commands` - Redis commands.
+
+  ## Transactions
+
+  This adapter doesn't provide support for transactions, since there is no way
+  to guarantee its execution on Redis itself, at least not in the way the
+  `c:Nebulex.Adapter.Transaction.transaction/3` works, because the anonymous
+  function can have any kind of logic, which cannot be translated easily into
+  Redis commands.
+
+  > In the future, it is planned to add to Nebulex a `multi`-like function to
+    perform multiple commands at once, perhaps that will be the best way to
+    perform [transactions via Redis](https://redis.io/topics/transactions).
+
   """
 
   # Provide Cache Implementation
@@ -277,7 +294,7 @@ defmodule NebulexRedisAdapter do
   import NebulexRedisAdapter.Encoder
 
   alias Nebulex.Adapter
-  alias NebulexRedisAdapter.{Cluster, Command, Connection, RedisCluster}
+  alias NebulexRedisAdapter.{ClientCluster, Command, Connection, RedisCluster}
 
   ## Nebulex.Adapter
 
@@ -358,12 +375,12 @@ defmodule NebulexRedisAdapter do
 
   defp do_init(:standalone, name, pool_size, opts) do
     {:ok, children} = Connection.init(name, pool_size, opts)
-    {children, Cluster.Keyslot}
+    {children, ClientCluster.Keyslot}
   end
 
-  defp do_init(:cluster, _name, _pool_size, opts) do
-    {:ok, children} = Cluster.init(opts)
-    {children, Cluster.Keyslot}
+  defp do_init(:client_side_cluster, _name, _pool_size, opts) do
+    {:ok, children} = ClientCluster.init(opts)
+    {children, ClientCluster.Keyslot}
   end
 
   defp do_init(:redis_cluster, name, pool_size, opts) do
@@ -619,16 +636,16 @@ defmodule NebulexRedisAdapter do
     apply(Command, :exec!, args)
   end
 
-  defp exec!(:cluster, args, extra_args) do
-    apply(Cluster, :exec!, args ++ extra_args)
+  defp exec!(:client_side_cluster, args, extra_args) do
+    apply(ClientCluster, :exec!, args ++ extra_args)
   end
 
   defp exec!(:redis_cluster, args, extra_args) do
     apply(RedisCluster, :exec!, args ++ extra_args)
   end
 
-  defp group_keys_by_hash_slot(enum, %{mode: :cluster, nodes: nodes, keyslot: keyslot}) do
-    Cluster.group_keys_by_hash_slot(enum, nodes, keyslot)
+  defp group_keys_by_hash_slot(enum, %{mode: :client_side_cluster, nodes: nodes, keyslot: keyslot}) do
+    ClientCluster.group_keys_by_hash_slot(enum, nodes, keyslot)
   end
 
   defp group_keys_by_hash_slot(enum, %{mode: :redis_cluster, keyslot: keyslot}) do

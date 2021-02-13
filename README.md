@@ -1,13 +1,13 @@
 # NebulexRedisAdapter
-> Nebulex adapter for Redis with cluster support.
+> Nebulex adapter for Redis (including [Redis Cluster][redis_cluster] support).
 
 ![CI](https://github.com/cabol/nebulex_redis_adapter/workflows/CI/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/cabol/nebulex_redis_adapter/badge.svg?branch=master)](https://coveralls.io/github/cabol/nebulex_redis_adapter?branch=master)
 [![Hex Version](https://img.shields.io/hexpm/v/nebulex_redis_adapter.svg)](https://hex.pm/packages/nebulex_redis_adapter)
 [![Docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/nebulex_redis_adapter)
 
-This adapter is implemented using [Redix](https://github.com/whatyouhide/redix),
-a Redis driver for Elixir.
+This adapter uses [Redix](https://github.com/whatyouhide/redix); a Redis driver
+for Elixir.
 
 The adapter supports different configurations modes which are explained in the
 next sections.
@@ -17,6 +17,7 @@ and [Redis cache example][nbx_redis_example].
 
 [nbx_redis_adapter]: http://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html
 [nbx_redis_example]: https://github.com/cabol/nebulex_examples/tree/master/redis_cache
+[redis_cluster]: https://redis.io/topics/cluster-tutorial
 
 ## Installation
 
@@ -33,12 +34,12 @@ end
 ```
 
 In order to give more flexibility and loading only needed dependencies, this
-adapter makes all its dependencies as optional. For example:
+adapter makes all its dependencies optional. For example:
 
   * `:crc` - Required when using the adapter in mode `:redis_cluster`.
-    See [Redis Cluster](https://redis.io/topics/cluster-tutorial).
+    See [Redis Cluster][redis_cluster].
   * `:jchash` - Required if you want to use consistent-hashing when using the
-    adapter in mode `:cluster`.
+    adapter in mode `:client_side_cluster`.
 
 Then run `mix deps.get` in your shell to fetch the dependencies.
 
@@ -83,11 +84,11 @@ There are different ways to support distributed caching when using
 
 ### Redis Cluster
 
-[Redis Cluster](https://redis.io/topics/cluster-tutorial) is a built-in feature
-in Redis since version 3, and it may be the most convenient and recommendable
-way to set up Redis in a cluster and have a distributed cache storage out-of-box.
-This adapter provides the `:redis_cluster` mode to set up **Redis Cluster**
-from the client-side automatically and be able to use it transparently.
+[Redis Cluster][redis_cluster] is a built-in feature in Redis since version 3,
+and it may be the most convenient and recommendable way to set up Redis in a
+cluster and have a distributed cache storage out-of-box. This adapter provides
+the `:redis_cluster` mode to set up **Redis Cluster** from the client-side
+automatically and be able to use it transparently.
 
 First of all, ensure you have **Redis Cluster** configured and running.
 
@@ -155,7 +156,7 @@ The config:
 ```elixir
 config :my_app, MyApp.ClusteredCache,
   # Enable client-side cluster mode
-  mode: :cluster,
+  mode: :client_side_cluster,
 
   # Nodes config (each node has its own options)
   nodes: [
@@ -185,12 +186,12 @@ config :my_app, MyApp.ClusteredCache,
   ]
 ```
 
-By default, the adapter uses `NebulexRedisAdapter.Cluster.Keyslot` for the
+By default, the adapter uses `NebulexRedisAdapter.ClientCluster.Keyslot` for the
 keyslot. Besides, if `:jchash` is defined as dependency, the adapter will use
 consistent-hashing automatically.
 
 > **NOTE:** It is highly recommended to define the `:jchash` dependency
-  when using the adapter in `:cluster` mode.
+  when using the adapter in `:client_side_cluster` mode.
 
 However, you can also provide your own implementation by implementing the
 `Nebulex.Adapter.Keyslot` and set it into the `:keyslot` option. For example:
@@ -211,7 +212,7 @@ And the config:
 ```elixir
 config :my_app, MyApp.ClusteredCache,
   # Enable client-side cluster mode
-  mode: :cluster,
+  mode: :client_side_cluster,
 
   # Provided Keyslot implementation
   keyslot: MyApp.ClusteredCache.Keyslot,
@@ -277,7 +278,7 @@ iex> cache.pipeline!("mylist", [
 [1, 2, ["hello", "world"]]
 ```
 
-**NOTE:** The `key` is required when used the adapter in mode `:cluster` or
+**NOTE:** The `key` is required when used the adapter in mode `:client_side_cluster` or
 `:redis_cluster`, for `:standalone` no needed (optional). And the `name` is
 in case you are using a dynamic cache and you have to pass the cache name
 explicitly.

@@ -1,12 +1,12 @@
-defmodule NebulexRedisAdapter.ClusterTest do
+defmodule NebulexRedisAdapter.ClientClusterTest do
   use ExUnit.Case, async: true
   use NebulexRedisAdapter.CacheTest
 
-  alias NebulexRedisAdapter.TestCache.Cluster, as: Cache
+  alias NebulexRedisAdapter.TestCache.ClientCluster, as: Cache
 
   setup do
     {:ok, pid} = Cache.start_link()
-    Cache.flush()
+    _ = Cache.flush()
     :ok
 
     on_exit(fn ->

@@ -188,9 +188,10 @@ defmodule NebulexRedisAdapter.RedisCluster do
   end
 
   defp connect(conn_opts) do
-    case conn_opts[:url] do
-      nil -> Redix.start_link(conn_opts)
-      url -> Redix.start_link(url, name: :redix_cluster)
+    if url = Keyword.get(conn_opts, :url) do
+      Redix.start_link(url, name: :redix_cluster)
+    else
+      Redix.start_link(conn_opts)
     end
   end
 end

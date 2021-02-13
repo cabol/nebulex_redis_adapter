@@ -1,8 +1,8 @@
-defmodule NebulexRedisAdapter.Cluster do
-  # Default Cluster
+defmodule NebulexRedisAdapter.ClientCluster do
+  # Client-side Cluster
   @moduledoc false
 
-  alias NebulexRedisAdapter.Cluster.Supervisor, as: ClusterSupervisor
+  alias NebulexRedisAdapter.ClientCluster.Supervisor, as: ClusterSupervisor
   alias NebulexRedisAdapter.{Connection, Pool}
 
   @type hash_slot :: {:"$hash_slot", term}
