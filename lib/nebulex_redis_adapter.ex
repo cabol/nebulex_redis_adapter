@@ -244,7 +244,7 @@ defmodule NebulexRedisAdapter do
   Therefore, the adapter injects two additional/extended functions to the
   defined cache: `command!/3` and `pipeline!/3`.
 
-  ### `command!(key \\ nil, name \\ __MODULE__, command)
+  ### `command!(key \\ nil, name \\ __MODULE__, command)`
 
       iex> MyCache.command!("mylist", ["LPUSH", "mylist", "world"])
       1
@@ -253,7 +253,7 @@ defmodule NebulexRedisAdapter do
       iex> MyCache.command!("mylist", ["LRANGE", "mylist", "0", "-1"])
       ["hello", "world"]
 
-  ### `pipeline!(key \\ nil, name \\ __MODULE__, commands)
+  ### `pipeline!(key \\ nil, name \\ __MODULE__, commands)`
 
       iex> cache.pipeline!("mylist", [
       ...>   ["LPUSH", "mylist", "world"],
