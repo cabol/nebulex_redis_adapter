@@ -617,7 +617,7 @@ defmodule NebulexRedisAdapter do
 
   defp fix_ttl(ttl) do
     raise ArgumentError,
-          "expected ttl: to be an integer >= 1000 or :intinity, got: #{inspect(ttl)}"
+          "expected ttl: to be an integer >= 1000 or :infinity, got: #{inspect(ttl)}"
   end
 
   defp execute_query(nil, adapter_meta) do
