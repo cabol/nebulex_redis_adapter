@@ -172,7 +172,7 @@ defmodule NebulexRedisAdapter.Cache.EntryExpTest do
     end
 
     test "invalid ttl", %{cache: cache} do
-      msg = "expected ttl: to be an integer >= 1000 or :intinity, got: 100"
+      msg = "expected ttl: to be an integer >= 1000 or :infinity, got: 100"
 
       assert_raise ArgumentError, msg, fn ->
         cache.put(1, 1, ttl: 100)
