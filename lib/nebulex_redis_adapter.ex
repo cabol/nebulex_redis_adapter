@@ -34,6 +34,12 @@ defmodule NebulexRedisAdapter do
     * `:conn_opts` - Redis client options (`Redix` options in this case).
       For more information about connection options, see `Redix` docs.
 
+  ## Telemetry events
+
+  This adapter emits the recommended Telemetry events.
+  See the "Telemetry events" section in `Nebulex.Cache`
+  for more information.
+
   ## TTL or Expiration Time
 
   As is explained in `Nebulex.Cache`, most of the write-like functions support
@@ -290,6 +296,7 @@ defmodule NebulexRedisAdapter do
   @behaviour Nebulex.Adapter.Entry
   @behaviour Nebulex.Adapter.Queryable
 
+  import Nebulex.Adapter
   import Nebulex.Helpers
   import NebulexRedisAdapter.Encoder
 
@@ -367,7 +374,9 @@ defmodule NebulexRedisAdapter do
       keyslot: keyslot,
       nodes: nodes,
       pool_size: pool_size,
-      default_dt: Keyword.get(opts, :default_data_type, :object)
+      default_dt: Keyword.get(opts, :default_data_type, :object),
+      telemetry: Keyword.fetch!(opts, :telemetry),
+      telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
     }
 
     {:ok, child_spec, meta}
@@ -391,16 +400,20 @@ defmodule NebulexRedisAdapter do
   ## Nebulex.Adapter.Entry
 
   @impl true
-  def get(adapter_meta, key, _opts) do
+  defspan get(adapter_meta, key, _opts) do
     with_pipeline(adapter_meta, key, [["GET", encode(key)]])
   end
 
   @impl true
-  def get_all(%{mode: :standalone} = adapter_meta, keys, _opts) do
+  defspan get_all(adapter_meta, keys, _opts) do
+    do_get_all(adapter_meta, keys)
+  end
+
+  defp do_get_all(%{mode: :standalone} = adapter_meta, keys) do
     mget(nil, adapter_meta, keys)
   end
 
-  def get_all(adapter_meta, keys, _opts) do
+  defp do_get_all(adapter_meta, keys) do
     keys
     |> group_keys_by_hash_slot(adapter_meta)
     |> Enum.reduce(%{}, fn {hash_slot, keys}, acc ->
@@ -423,7 +436,7 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def put(adapter_meta, key, value, ttl, on_write, opts) do
+  defspan put(adapter_meta, key, value, ttl, on_write, opts) do
     cmd_opts = cmd_opts(action: on_write, ttl: fix_ttl(ttl))
     redis_k = encode(key)
     redis_v = encode(value, opts)
@@ -435,18 +448,20 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def put_all(%{mode: :standalone} = adapter_meta, entries, ttl, on_write, opts) do
-    do_put_all(adapter_meta, nil, entries, fix_ttl(ttl), on_write, opts)
-  end
-
-  def put_all(adapter_meta, entries, ttl, on_write, opts) do
+  defspan put_all(adapter_meta, entries, ttl, on_write, opts) do
     ttl = fix_ttl(ttl)
 
-    entries
-    |> group_keys_by_hash_slot(adapter_meta)
-    |> Enum.reduce(:ok, fn {hash_slot, group}, acc ->
-      acc && do_put_all(adapter_meta, hash_slot, group, ttl, on_write, opts)
-    end)
+    case adapter_meta.mode do
+      :standalone ->
+        do_put_all(adapter_meta, nil, entries, ttl, on_write, opts)
+
+      _ ->
+        entries
+        |> group_keys_by_hash_slot(adapter_meta)
+        |> Enum.reduce(:ok, fn {hash_slot, group}, acc ->
+          acc && do_put_all(adapter_meta, hash_slot, group, ttl, on_write, opts)
+        end)
+    end
   end
 
   defp do_put_all(adapter_meta, hash_slot, entries, ttl, on_write, opts) do
@@ -479,19 +494,19 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def delete(adapter_meta, key, _opts) do
+  defspan delete(adapter_meta, key, _opts) do
     _ = Command.exec!(adapter_meta, ["DEL", encode(key)], key)
     :ok
   end
 
   @impl true
-  def take(adapter_meta, key, _opts) do
+  defspan take(adapter_meta, key, _opts) do
     redis_k = encode(key)
     with_pipeline(adapter_meta, key, [["GET", redis_k], ["DEL", redis_k]])
   end
 
   @impl true
-  def has_key?(adapter_meta, key) do
+  defspan has_key?(adapter_meta, key) do
     case Command.exec!(adapter_meta, ["EXISTS", encode(key)], key) do
       1 -> true
       0 -> false
@@ -499,7 +514,7 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def ttl(adapter_meta, key) do
+  defspan ttl(adapter_meta, key) do
     case Command.exec!(adapter_meta, ["TTL", encode(key)], key) do
       -1 -> :infinity
       -2 -> nil
@@ -508,7 +523,11 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def expire(adapter_meta, key, :infinity) do
+  defspan expire(adapter_meta, key, ttl) do
+    do_expire(adapter_meta, key, ttl)
+  end
+
+  defp do_expire(adapter_meta, key, :infinity) do
     redis_k = encode(key)
 
     case Command.pipeline!(adapter_meta, [["TTL", redis_k], ["PERSIST", redis_k]], key) do
@@ -517,7 +536,7 @@ defmodule NebulexRedisAdapter do
     end
   end
 
-  def expire(adapter_meta, key, ttl) do
+  defp do_expire(adapter_meta, key, ttl) do
     case Command.exec!(adapter_meta, ["EXPIRE", encode(key), fix_ttl(ttl)], key) do
       1 -> true
       0 -> false
@@ -525,7 +544,7 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def touch(adapter_meta, key) do
+  defspan touch(adapter_meta, key) do
     case Command.exec!(adapter_meta, ["TOUCH", encode(key)], key) do
       1 -> true
       0 -> false
@@ -533,7 +552,11 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  def update_counter(adapter_meta, key, incr, :infinity, default, _opts) do
+  defspan update_counter(adapter_meta, key, incr, ttl, default, _opts) do
+    do_update_counter(adapter_meta, key, incr, ttl, default)
+  end
+
+  defp do_update_counter(adapter_meta, key, incr, :infinity, default) do
     redis_k = encode(key)
 
     adapter_meta
@@ -541,7 +564,7 @@ defmodule NebulexRedisAdapter do
     |> Command.exec!(["INCRBY", redis_k, incr], key)
   end
 
-  def update_counter(adapter_meta, key, incr, ttl, default, _opts) do
+  defp do_update_counter(adapter_meta, key, incr, ttl, default) do
     redis_k = encode(key)
 
     adapter_meta
@@ -567,22 +590,26 @@ defmodule NebulexRedisAdapter do
   ## Nebulex.Adapter.Queryable
 
   @impl true
-  def execute(%{mode: mode} = adapter_meta, :count_all, nil, _opts) do
+  defspan execute(adapter_meta, operation, query, _opts) do
+    do_execute(adapter_meta, operation, query)
+  end
+
+  defp do_execute(%{mode: mode} = adapter_meta, :count_all, nil) do
     exec!(mode, [adapter_meta, ["DBSIZE"]], [0, &Kernel.+(&2, &1)])
   end
 
-  def execute(%{mode: mode} = adapter_meta, :delete_all, nil, _opts) do
+  defp do_execute(%{mode: mode} = adapter_meta, :delete_all, nil) do
     size = exec!(mode, [adapter_meta, ["DBSIZE"]], [0, &Kernel.+(&2, &1)])
     _ = exec!(mode, [adapter_meta, ["FLUSHDB"]], [])
     size
   end
 
-  def execute(adapter_meta, :all, query, _opts) do
+  defp do_execute(adapter_meta, :all, query) do
     execute_query(query, adapter_meta)
   end
 
   @impl true
-  def stream(adapter_meta, query, _opts) do
+  defspan stream(adapter_meta, query, _opts) do
     Stream.resource(
       fn ->
         execute_query(query, adapter_meta)

@@ -1,3 +1,6 @@
+# Start Telemetry
+Application.start(:telemetry)
+
 # Nebulex dependency path
 nbx_dep_path = Mix.Project.deps_paths()[:nebulex]
 
