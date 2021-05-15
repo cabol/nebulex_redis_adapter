@@ -1,5 +1,24 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v2.1.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.1.0) (2021-05-15)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.0.0...v2.1.0)
+
+**Added features:**
+
+- Instrument the adapter with Telemetry events
+  [#27](https://github.com/cabol/nebulex_redis_adapter/issues/27)
+
+**Merged pull requests:**
+
+- Fix Small Typo on `NebulexRedisAdapter.fix_ttl/1`
+  [#26](https://github.com/cabol/nebulex_redis_adapter/pull/26)
+  ([lucas-cegatti](https://github.com/lucas-cegatti))
+
 ## [v2.0.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.0.0) (2021-02-20)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.0.0-rc.1...v2.0.0)
