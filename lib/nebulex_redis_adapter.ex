@@ -366,14 +366,15 @@ defmodule NebulexRedisAdapter do
         {node_name, Keyword.get(node_opts, :pool_size, System.schedulers_online())}
       end
 
+    # init stats
+    stats_counter = Stats.init(opts)
+
     child_spec =
       Nebulex.Adapters.Supervisor.child_spec(
         name: normalize_module_name([name, Supervisor]),
         strategy: :rest_for_one,
         children: children
       )
-
-    stats_counter = Stats.init(opts)
 
     meta = %{
       name: name,
@@ -388,14 +389,20 @@ defmodule NebulexRedisAdapter do
       telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
     }
 
+    _ = maybe_attach_stats_handler(meta)
+
+    {:ok, child_spec, meta}
+  end
+
+  defp maybe_attach_stats_handler(%{stats_counter: nil}), do: :ok
+
+  defp maybe_attach_stats_handler(%{stats_counter: stats_counter} = meta) do
     Telemetry.attach_many(
       stats_counter,
       [meta.telemetry_prefix ++ [:command, :stop]],
       &StatsHandler.handle_event/4,
       stats_counter
     )
-
-    {:ok, child_spec, meta}
   end
 
   defp do_init(:standalone, name, pool_size, opts) do
