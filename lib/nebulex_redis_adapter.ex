@@ -300,7 +300,12 @@ defmodule NebulexRedisAdapter do
   import Nebulex.Helpers
   import NebulexRedisAdapter.Encoder
 
+  use Nebulex.Adapter.Stats
+
   alias Nebulex.Adapter
+  alias Nebulex.Adapter.Stats
+  alias Nebulex.Telemetry
+  alias Nebulex.Telemetry.StatsHandler
   alias NebulexRedisAdapter.{ClientCluster, Command, Connection, RedisCluster}
 
   ## Nebulex.Adapter
@@ -361,6 +366,9 @@ defmodule NebulexRedisAdapter do
         {node_name, Keyword.get(node_opts, :pool_size, System.schedulers_online())}
       end
 
+    # init stats
+    stats_counter = Stats.init(opts)
+
     child_spec =
       Nebulex.Adapters.Supervisor.child_spec(
         name: normalize_module_name([name, Supervisor]),
@@ -374,12 +382,27 @@ defmodule NebulexRedisAdapter do
       keyslot: keyslot,
       nodes: nodes,
       pool_size: pool_size,
+      stats_counter: stats_counter,
+      started_at: DateTime.utc_now(),
       default_dt: Keyword.get(opts, :default_data_type, :object),
       telemetry: Keyword.fetch!(opts, :telemetry),
       telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
     }
 
+    _ = maybe_attach_stats_handler(meta)
+
     {:ok, child_spec, meta}
+  end
+
+  defp maybe_attach_stats_handler(%{stats_counter: nil}), do: :ok
+
+  defp maybe_attach_stats_handler(%{stats_counter: stats_counter} = meta) do
+    Telemetry.attach_many(
+      stats_counter,
+      [meta.telemetry_prefix ++ [:command, :stop]],
+      &StatsHandler.handle_event/4,
+      stats_counter
+    )
   end
 
   defp do_init(:standalone, name, pool_size, opts) do
@@ -620,6 +643,13 @@ defmodule NebulexRedisAdapter do
       end,
       & &1
     )
+  end
+
+  @impl Nebulex.Adapter.Stats
+  def stats(%{started_at: started_at} = adapter_meta) do
+    if stats = super(adapter_meta) do
+      %{stats | metadata: Map.put(stats.metadata, :started_at, started_at)}
+    end
   end
 
   ## Private Functions
