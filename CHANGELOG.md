@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.1.1](https://github.com/cabol/nebulex_redis_adapter/tree/v2.1.1) (2021-05-24)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.1.0...v2.1.1)
+
+**Implemented enhancements:**
+
+- Add bootstrap server to run init and cleanup jobs (e.g.: attach/detach stats handler)
+  [#30](https://github.com/cabol/nebulex_redis_adapter/issues/30)
+
+**Closed issues:**
+
+- NebulexRedisAdapter does not implement `c:stats/0`
+  [#28](https://github.com/cabol/nebulex_redis_adapter/issues/28)
+
+**Merged pull requests:**
+
+- Add support for stats via `Nebulex.Telemetry.StatsHandler`
+  [#29](https://github.com/cabol/nebulex_redis_adapter/pull/29)
+  ([simoncocking](https://github.com/simoncocking))
+
 ## [v2.1.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.1.0) (2021-05-15)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.0.0...v2.1.0)
