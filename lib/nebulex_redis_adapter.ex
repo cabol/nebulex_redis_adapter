@@ -304,8 +304,6 @@ defmodule NebulexRedisAdapter do
 
   alias Nebulex.Adapter
   alias Nebulex.Adapter.Stats
-  alias Nebulex.Telemetry
-  alias Nebulex.Telemetry.StatsHandler
   alias NebulexRedisAdapter.{ClientCluster, Command, Connection, RedisCluster}
 
   ## Nebulex.Adapter
@@ -369,14 +367,7 @@ defmodule NebulexRedisAdapter do
     # init stats
     stats_counter = Stats.init(opts)
 
-    child_spec =
-      Nebulex.Adapters.Supervisor.child_spec(
-        name: normalize_module_name([name, Supervisor]),
-        strategy: :rest_for_one,
-        children: children
-      )
-
-    meta = %{
+    adapter_meta = %{
       name: name,
       mode: mode,
       keyslot: keyslot,
@@ -389,20 +380,14 @@ defmodule NebulexRedisAdapter do
       telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
     }
 
-    _ = maybe_attach_stats_handler(meta)
+    child_spec =
+      Nebulex.Adapters.Supervisor.child_spec(
+        name: normalize_module_name([name, Supervisor]),
+        strategy: :rest_for_one,
+        children: [{NebulexRedisAdapter.BootstrapServer, adapter_meta} | children]
+      )
 
-    {:ok, child_spec, meta}
-  end
-
-  defp maybe_attach_stats_handler(%{stats_counter: nil}), do: :ok
-
-  defp maybe_attach_stats_handler(%{stats_counter: stats_counter} = meta) do
-    Telemetry.attach_many(
-      stats_counter,
-      [meta.telemetry_prefix ++ [:command, :stop]],
-      &StatsHandler.handle_event/4,
-      stats_counter
-    )
+    {:ok, child_spec, adapter_meta}
   end
 
   defp do_init(:standalone, name, pool_size, opts) do
