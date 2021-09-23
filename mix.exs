@@ -50,7 +50,7 @@ defmodule NebulexRedisAdapter.MixProject do
       {:redix, "~> 1.1"},
       {:crc, "~> 0.10", optional: true},
       {:jchash, "~> 0.1.2", optional: true},
-      {:telemetry, "~> 0.4", optional: true},
+      {:telemetry, "~> 0.4 or ~> 1.0", optional: true},
 
       # Test & Code Analysis
       {:excoveralls, "~> 0.14", only: :test},
