@@ -383,7 +383,7 @@ defmodule NebulexRedisAdapter do
     child_spec =
       Nebulex.Adapters.Supervisor.child_spec(
         name: normalize_module_name([name, Supervisor]),
-        strategy: :rest_for_one,
+        strategy: :one_for_all,
         children: [{NebulexRedisAdapter.BootstrapServer, adapter_meta} | children]
       )
 

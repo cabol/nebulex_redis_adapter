@@ -8,7 +8,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
 
   setup do
     {:ok, pid} = Cache.start_link()
-    Cache.flush()
+    _ = Cache.delete_all()
 
     on_exit(fn ->
       :ok = Process.sleep(100)
@@ -18,35 +18,53 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
     {:ok, cache: Cache, name: Cache}
   end
 
-  test "connection error" do
-    assert {:error, %Redix.ConnectionError{reason: :closed}} = RedisClusterConnError.start_link()
+  describe "connection" do
+    test "error: connection is closed" do
+      assert {:error, %Redix.ConnectionError{reason: :closed}} =
+               RedisClusterConnError.start_link()
+    end
   end
 
-  test "hash tags on keys" do
-    for i <- 0..10 do
-      assert RedisCluster.hash_slot("{foo}.#{i}") ==
-               RedisCluster.hash_slot("{foo}.#{i + 1}")
+  describe "CRC16" do
+    test "ok: returns the expected hash_slot" do
+      assert RedisCluster.hash_slot("123456789") == {:"$hash_slot", 12_739}
+    end
+  end
 
-      assert RedisCluster.hash_slot("{bar}.#{i}") ==
-               RedisCluster.hash_slot("{bar}.#{i + 1}")
+  describe "keys hash tags" do
+    test "hash_slot/2" do
+      for i <- 0..10 do
+        assert RedisCluster.hash_slot("{foo}.#{i}") ==
+                 RedisCluster.hash_slot("{foo}.#{i + 1}")
+
+        assert RedisCluster.hash_slot("{bar}.#{i}") ==
+                 RedisCluster.hash_slot("{bar}.#{i + 1}")
+      end
+
+      assert RedisCluster.hash_slot("{foo.1") != RedisCluster.hash_slot("{foo.2")
     end
 
-    assert RedisCluster.hash_slot("{foo.1") != RedisCluster.hash_slot("{foo.2")
-  end
-
-  test "set and get with hash tags" do
-    assert :ok == Cache.put_all(%{"{foo}.1" => "bar1", "{foo}.2" => "bar2"})
-    assert %{"{foo}.1" => "bar1", "{foo}.2" => "bar2"} == Cache.get_all(["{foo}.1", "{foo}.2"])
-  end
-
-  test "moved error" do
-    assert {:ok, pid} = RedisClusterWithKeyslot.start_link()
-    assert Process.alive?(pid)
-
-    assert_raise Redix.Error, fn ->
-      RedisClusterWithKeyslot.put("1234567890", "hello") == :ok
+    test "with put and get operations" do
+      assert :ok == Cache.put_all(%{"{foo}.1" => "bar1", "{foo}.2" => "bar2"})
+      assert %{"{foo}.1" => "bar1", "{foo}.2" => "bar2"} == Cache.get_all(["{foo}.1", "{foo}.2"])
     end
+  end
 
-    refute Process.alive?(pid)
+  describe "MOVED error" do
+    test "when executing a Redis command/pipeline" do
+      _ = Process.flag(:trap_exit, true)
+
+      {:ok, _pid} = RedisClusterWithKeyslot.start_link()
+
+      # put is executed throughout a Redis command
+      assert_raise Redix.Error, ~r"MOVED", fn ->
+        RedisClusterWithKeyslot.put("1234567890", "hello")
+      end
+
+      # get is executed throughout a Redis pipeline
+      assert_raise Redix.Error, ~r"MOVED", fn ->
+        RedisClusterWithKeyslot.get("1234567890", "hello")
+      end
+    end
   end
 end

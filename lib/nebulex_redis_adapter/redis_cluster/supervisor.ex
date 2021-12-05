@@ -24,9 +24,8 @@ defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
       opts
       |> Keyword.get(:conn_opts, [])
       |> Keyword.delete(:url)
-      |> Keyword.put(:host, host)
-      |> Keyword.put(:port, port)
-      |> Keyword.merge(Keyword.get(opts, :conn_opts, []))
+      |> Keyword.put_new(:host, host)
+      |> Keyword.put_new(:port, port)
 
     children =
       for i <- 0..(pool_size - 1) do

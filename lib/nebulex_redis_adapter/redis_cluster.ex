@@ -40,6 +40,8 @@ defmodule NebulexRedisAdapter.RedisCluster do
     end
   end
 
+  import Nebulex.Helpers
+
   alias NebulexRedisAdapter.{Connection, Pool}
 
   @compile {:inline, cluster_slots_tab: 1}
@@ -62,7 +64,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
     # create specs for children
     children =
       for [start, stop | nodes] <- cluster_slots do
-        sup_name = :"#{name}.#{start}.#{stop}"
+        sup_name = normalize_module_name([name, RedisClusterSupervisor, start, stop])
 
         opts =
           opts

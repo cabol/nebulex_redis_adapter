@@ -3,7 +3,7 @@ defmodule NebulexRedisAdapter.MixProject do
 
   @source_url "https://github.com/cabol/nebulex_redis_adapter"
   @version "2.1.1"
-  @nbx_vsn "2.1.0"
+  @nbx_vsn "2.3.0"
 
   def project do
     [

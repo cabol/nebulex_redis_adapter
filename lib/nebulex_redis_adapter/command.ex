@@ -9,11 +9,11 @@ defmodule NebulexRedisAdapter.Command do
           Redix.command(),
           Nebulex.Cache.key()
         ) :: any | no_return
-  def exec!(%{cache: cache} = meta, command, key \\ nil) do
-    meta
+  def exec!(adapter_meta, command, key \\ nil) do
+    adapter_meta
     |> conn(key)
     |> Redix.command(command)
-    |> handle_command_response(cache)
+    |> handle_command_response()
   end
 
   @spec pipeline!(
@@ -21,25 +21,12 @@ defmodule NebulexRedisAdapter.Command do
           [Redix.command()],
           Nebulex.Cache.key()
         ) :: [any] | no_return
-  def pipeline!(%{cache: cache} = meta, commands, key \\ nil) do
-    meta
+  def pipeline!(adapter_meta, commands, key \\ nil) do
+    adapter_meta
     |> conn(key)
     |> Redix.pipeline(commands)
-    |> handle_command_response(cache)
-  end
-
-  @spec handle_command_response({:ok, any} | {:error, any}, Nebulex.Cache.t()) :: any | no_return
-  def handle_command_response({:ok, response}, _cache) do
-    response
-  end
-
-  def handle_command_response({:error, %Redix.Error{message: "MOVED" <> _} = error}, cache) do
-    :ok = cache.stop()
-    raise error
-  end
-
-  def handle_command_response({:error, reason}, _cache) do
-    raise reason
+    |> handle_command_response()
+    |> check_pipeline_errors()
   end
 
   ## Private Functions
@@ -58,5 +45,22 @@ defmodule NebulexRedisAdapter.Command do
 
   defp conn(%{mode: :redis_cluster} = meta, key) do
     RedisCluster.get_conn(meta, key)
+  end
+
+  defp handle_command_response({:ok, response}) do
+    response
+  end
+
+  defp handle_command_response({:error, %Redix.Error{message: "MOVED" <> _} = error}) do
+    raise error
+  end
+
+  defp handle_command_response({:error, reason}) do
+    raise reason
+  end
+
+  defp check_pipeline_errors(results) do
+    _ = for %Redix.Error{} = error <- results, do: raise(error)
+    results
   end
 end

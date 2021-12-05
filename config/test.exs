@@ -58,6 +58,9 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterConnErr
     [
       host: "127.0.0.1",
       port: 10100
+    ],
+    [
+      url: "redis://127.0.0.1:10200"
     ]
   ],
   conn_opts: [

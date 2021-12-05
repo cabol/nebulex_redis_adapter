@@ -6,7 +6,7 @@ defmodule NebulexRedisAdapter.ClientClusterTest do
 
   setup do
     {:ok, pid} = Cache.start_link()
-    _ = Cache.flush()
+    _ = Cache.delete_all()
     :ok
 
     on_exit(fn ->
