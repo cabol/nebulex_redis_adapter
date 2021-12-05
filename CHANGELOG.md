@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.1.2](https://github.com/cabol/nebulex_redis_adapter/tree/v2.1.2) (2021-12-05)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.1.1...v2.1.2)
+
+**Fixed bugs:**
+
+- Raise an error when pipeline results contains one or more Redis errors
+  [#33](https://github.com/cabol/nebulex_redis_adapter/issues/33)
+
+**Closed issues:**
+
+- Add Support for SSL
+  [#32](https://github.com/cabol/nebulex_redis_adapter/issues/32)
+
+**Merged pull requests:**
+
+- Allow telemetry 1.0
+  [#31](https://github.com/cabol/nebulex_redis_adapter/pull/31)
+  ([bjyoungblood](https://github.com/bjyoungblood))
+
 ## [v2.1.1](https://github.com/cabol/nebulex_redis_adapter/tree/v2.1.1) (2021-05-24)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.1.0...v2.1.1)
