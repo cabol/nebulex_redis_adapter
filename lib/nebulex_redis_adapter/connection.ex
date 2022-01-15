@@ -1,16 +1,29 @@
 defmodule NebulexRedisAdapter.Connection do
   @moduledoc false
 
+  alias NebulexRedisAdapter.Pool
+
+  @typedoc "Proxy type to the adapter meta"
+  @type adapter_meta :: Nebulex.Adapter.metadata()
+
   ## API
 
-  @spec init(atom, pos_integer, Keyword.t()) :: {:ok, [Supervisor.child_spec()]}
-  def init(name, pool_size, opts) do
-    children =
-      for i <- 0..(pool_size - 1) do
-        child_spec([name: :"#{name}.#{i}"] ++ opts)
-      end
+  @spec init(adapter_meta, Keyword.t()) :: {Supervisor.child_spec(), adapter_meta}
+  def init(%{name: name, registry: registry, pool_size: pool_size} = adapter_meta, opts) do
+    connections_specs =
+      Pool.register_names(registry, name, pool_size, fn conn_name ->
+        opts
+        |> Keyword.put(:name, conn_name)
+        |> child_spec()
+      end)
 
-    {:ok, children}
+    connections_supervisor_spec = %{
+      id: :connections_supervisor,
+      type: :supervisor,
+      start: {Supervisor, :start_link, [connections_specs, [strategy: :one_for_one]]}
+    }
+
+    {connections_supervisor_spec, adapter_meta}
   end
 
   @spec child_spec(Keyword.t()) :: Supervisor.child_spec()

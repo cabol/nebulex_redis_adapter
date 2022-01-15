@@ -31,20 +31,32 @@ defmodule NebulexRedisAdapter.Command do
 
   ## Private Functions
 
-  defp conn(%{mode: :standalone, name: name, pool_size: pool_size}, _key) do
-    Pool.get_conn(name, pool_size)
-  end
-
-  defp conn(%{mode: :client_side_cluster, name: name, nodes: nodes}, {:"$hash_slot", node_name}) do
-    ClientCluster.get_conn(name, nodes, node_name)
-  end
-
-  defp conn(%{mode: :client_side_cluster, name: name, nodes: nodes, keyslot: keyslot}, key) do
-    ClientCluster.get_conn(name, nodes, key, keyslot)
+  defp conn(%{mode: :standalone, name: name, registry: registry, pool_size: pool_size}, _key) do
+    Pool.get_conn(registry, name, pool_size)
   end
 
   defp conn(%{mode: :redis_cluster} = meta, key) do
     RedisCluster.get_conn(meta, key)
+  end
+
+  defp conn(
+         %{mode: :client_side_cluster, name: name, registry: registry, nodes: nodes},
+         {:"$hash_slot", node_name}
+       ) do
+    ClientCluster.get_conn(registry, name, nodes, node_name)
+  end
+
+  defp conn(
+         %{
+           mode: :client_side_cluster,
+           name: name,
+           registry: registry,
+           nodes: nodes,
+           keyslot: keyslot
+         },
+         key
+       ) do
+    ClientCluster.get_conn(registry, name, nodes, key, keyslot)
   end
 
   defp handle_command_response({:ok, response}) do

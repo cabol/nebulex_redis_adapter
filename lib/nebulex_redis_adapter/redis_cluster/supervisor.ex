@@ -5,19 +5,23 @@ defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
 
   use Supervisor
 
+  alias NebulexRedisAdapter.Pool
+
   ## API
 
   @doc false
   def start_link(opts) do
-    name = Keyword.fetch!(opts, :name)
-    Supervisor.start_link(__MODULE__, {name, opts}, name: name)
+    Supervisor.start_link(__MODULE__, opts)
   end
 
   ## Supervisor Callbacks
 
   @impl true
-  def init({name, opts}) do
+  def init(opts) do
+    slot_id = Keyword.fetch!(opts, :slot_id)
+    registry = Keyword.fetch!(opts, :registry)
     pool_size = Keyword.fetch!(opts, :pool_size)
+
     [[host, port, _id] = _master | _replicas] = Keyword.fetch!(opts, :nodes)
 
     conn_opts =
@@ -28,10 +32,11 @@ defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
       |> Keyword.put_new(:port, port)
 
     children =
-      for i <- 0..(pool_size - 1) do
-        conn_opts = Keyword.put(conn_opts, :name, :"#{name}.#{i}")
-        Supervisor.child_spec({Redix, conn_opts}, id: {Redix, i})
-      end
+      Pool.register_names(registry, slot_id, pool_size, fn conn_name ->
+        conn_opts = Keyword.put(conn_opts, :name, conn_name)
+
+        Supervisor.child_spec({Redix, conn_opts}, id: {Redix, conn_name})
+      end)
 
     Supervisor.init(children, strategy: :one_for_one)
   end

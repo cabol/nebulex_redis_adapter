@@ -168,9 +168,9 @@ defmodule NebulexRedisAdapter do
           ]
         ]
 
-  By default, the adapter uses `NebulexRedisAdapter.ClientCluster.Keyslot` for the
-  keyslot. Besides, if `:jchash` is defined as dependency, the adapter will use
-  consistent-hashing automatically. However, you can also provide your own
+  By default, the adapter uses `NebulexRedisAdapter.ClientCluster.Keyslot` for
+  the keyslot. Besides, if `:jchash` is defined as dependency, the adapter will
+  use consistent-hashing automatically. However, you can also provide your own
   implementation by implementing the `Nebulex.Adapter.Keyslot` and set it into
   the `:keyslot` option. For example:
 
@@ -194,12 +194,12 @@ defmodule NebulexRedisAdapter do
 
   ### Client-side cluster options
 
-  In addition to shared options, `:client_side_cluster` mode supports the following
-  options:
+  In addition to shared options, `:client_side_cluster` mode supports the
+  following options:
 
     * `:nodes` - The list of nodes the adapter will setup the cluster with;
-      a pool of connections is established per node. The `:client_side_cluster` mode
-      enables resilience to be able to survive in case any node(s) gets
+      a pool of connections is established per node. The `:client_side_cluster`
+      mode enables resilience to be able to survive in case any node(s) gets
       unreachable. For each element of the list, we set the configuration
       for each node, such as `:conn_opts`, `:pool_size`, etc.
 
@@ -333,13 +333,19 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   def init(opts) do
-    # required cache name
+    # Required cache name
     name = opts[:name] || Keyword.fetch!(opts, :cache)
 
-    # adapter mode
+    # Init stats
+    stats_counter = Stats.init(opts)
+
+    # Adapter mode
     mode = Keyword.get(opts, :mode, :standalone)
 
-    # pool size
+    # Local registry
+    registry = normalize_module_name([name, Registry])
+
+    # Resolve the pool size
     pool_size =
       get_option(
         opts,
@@ -349,60 +355,62 @@ defmodule NebulexRedisAdapter do
         System.schedulers_online()
       )
 
-    # init the specs according to the adapter mode
-    {children, default_keyslot} = do_init(mode, name, pool_size, opts)
-
-    # keyslot module for selecting nodes
+    # Keyslot module for selecting nodes
     keyslot =
-      opts
-      |> Keyword.get(:keyslot, default_keyslot)
-      |> assert_behaviour(Nebulex.Adapter.Keyslot, "keyslot")
-
-    # cluster nodes
-    nodes =
-      for {node_name, node_opts} <- Keyword.get(opts, :nodes, []) do
-        {node_name, Keyword.get(node_opts, :pool_size, System.schedulers_online())}
+      if keyslot = Keyword.get(opts, :keyslot) do
+        assert_behaviour(keyslot, Nebulex.Adapter.Keyslot, "keyslot")
       end
 
-    # init stats
-    stats_counter = Stats.init(opts)
+    # Cluster nodes
+    nodes =
+      for {node_name, node_opts} <- Keyword.get(opts, :nodes, []) do
+        {node_name, Keyword.get(node_opts, :pool_size, pool_size)}
+      end
 
+    # Init adapter metadata
     adapter_meta = %{
+      cache_pid: self(),
       name: name,
       mode: mode,
       keyslot: keyslot,
       nodes: nodes,
       pool_size: pool_size,
       stats_counter: stats_counter,
+      registry: registry,
       started_at: DateTime.utc_now(),
       default_dt: Keyword.get(opts, :default_data_type, :object),
       telemetry: Keyword.fetch!(opts, :telemetry),
       telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
     }
 
+    # Init the connections child spec according to the adapter mode
+    {conn_child_spec, adapter_meta} = do_init(adapter_meta, opts)
+
+    # Build the child spec
     child_spec =
       Nebulex.Adapters.Supervisor.child_spec(
         name: normalize_module_name([name, Supervisor]),
         strategy: :one_for_all,
-        children: [{NebulexRedisAdapter.BootstrapServer, adapter_meta} | children]
+        children: [
+          {NebulexRedisAdapter.BootstrapServer, adapter_meta},
+          {Registry, name: registry, keys: :unique},
+          conn_child_spec
+        ]
       )
 
     {:ok, child_spec, adapter_meta}
   end
 
-  defp do_init(:standalone, name, pool_size, opts) do
-    {:ok, children} = Connection.init(name, pool_size, opts)
-    {children, ClientCluster.Keyslot}
+  defp do_init(%{mode: :standalone} = adapter_meta, opts) do
+    Connection.init(adapter_meta, opts)
   end
 
-  defp do_init(:client_side_cluster, _name, _pool_size, opts) do
-    {:ok, children} = ClientCluster.init(opts)
-    {children, ClientCluster.Keyslot}
+  defp do_init(%{mode: :redis_cluster} = adapter_meta, opts) do
+    RedisCluster.init(adapter_meta, opts)
   end
 
-  defp do_init(:redis_cluster, name, pool_size, opts) do
-    {:ok, children} = RedisCluster.init(name, pool_size, opts)
-    {children, RedisCluster.Keyslot}
+  defp do_init(%{mode: :client_side_cluster} = adapter_meta, opts) do
+    ClientCluster.init(adapter_meta, opts)
   end
 
   ## Nebulex.Adapter.Entry

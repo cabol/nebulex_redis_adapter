@@ -3,20 +3,21 @@ defmodule NebulexRedisAdapter.Pool do
 
   ## API
 
-  @spec children(module, Keyword.t()) :: [Supervisor.child_spec()]
-  def children(module, opts) do
-    name = Keyword.fetch!(opts, :name)
-    pool_size = opts[:pool_size] || System.schedulers_online()
-
+  @spec register_names(atom, term, pos_integer, ({:via, module, term} -> term)) :: [term]
+  def register_names(registry, key, pool_size, fun) do
     for index <- 0..(pool_size - 1) do
-      opts = Keyword.put(opts, :name, :"#{name}.#{index}")
-      {module, opts}
+      fun.({:via, Registry, {registry, {key, index}}})
     end
   end
 
-  @spec get_conn(atom, pos_integer) :: atom
-  def get_conn(name, pool_size) do
-    # ensure to select the same connection based on the caller PID
-    :"#{name}.#{:erlang.phash2(self(), pool_size)}"
+  @spec get_conn(atom, term, pos_integer) :: pid
+  def get_conn(registry, key, pool_size) do
+    # Ensure selecting the same connection based on the caller PID
+    index = :erlang.phash2(self(), pool_size)
+
+    registry
+    |> Registry.lookup({key, index})
+    |> hd()
+    |> elem(0)
   end
 end
