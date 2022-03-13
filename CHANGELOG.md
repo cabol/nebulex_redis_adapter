@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.2.0) (2022-03-13)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.1.2...v2.2.0)
+
+**Implemented enhancements:**
+
+- Add `command/3` and `pipeline/3` extended functions
+  [#35](https://github.com/cabol/nebulex_redis_adapter/issues/35)
+- Implement a Registry-based routing pool strategy
+  [#34](https://github.com/cabol/nebulex_redis_adapter/issues/34)
+
 ## [v2.1.2](https://github.com/cabol/nebulex_redis_adapter/tree/v2.1.2) (2021-12-05)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.1.1...v2.1.2)
