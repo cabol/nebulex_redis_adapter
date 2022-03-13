@@ -314,6 +314,16 @@ defmodule NebulexRedisAdapter do
       @doc """
       A convenience function for executing a Redis command.
       """
+      def command(key \\ nil, name \\ __MODULE__, command) do
+        Adapter.with_meta(name, fn _, meta ->
+          Command.exec(meta, command, key)
+        end)
+      end
+
+      @doc """
+      A convenience function for executing a Redis command,
+      but raises an exception if an error occurs.
+      """
       def command!(key \\ nil, name \\ __MODULE__, command) do
         Adapter.with_meta(name, fn _, meta ->
           Command.exec!(meta, command, key)
@@ -322,6 +332,16 @@ defmodule NebulexRedisAdapter do
 
       @doc """
       A convenience function for executing a Redis pipeline.
+      """
+      def pipeline(key \\ nil, name \\ __MODULE__, commands) do
+        Adapter.with_meta(name, fn _, meta ->
+          Command.pipeline(meta, commands, key)
+        end)
+      end
+
+      @doc """
+      A convenience function for executing a Redis pipeline,
+      but raises an exception if an error occurs.
       """
       def pipeline!(key \\ nil, name \\ __MODULE__, commands) do
         Adapter.with_meta(name, fn _, meta ->
@@ -512,12 +532,14 @@ defmodule NebulexRedisAdapter do
   @impl true
   defspan delete(adapter_meta, key, _opts) do
     _ = Command.exec!(adapter_meta, ["DEL", encode(key)], key)
+
     :ok
   end
 
   @impl true
   defspan take(adapter_meta, key, _opts) do
     redis_k = encode(key)
+
     with_pipeline(adapter_meta, key, [["GET", redis_k], ["DEL", redis_k]])
   end
 
@@ -617,6 +639,7 @@ defmodule NebulexRedisAdapter do
   defp do_execute(%{mode: mode} = adapter_meta, :delete_all, nil) do
     size = exec!(mode, [adapter_meta, ["DBSIZE"]], [0, &Kernel.+(&2, &1)])
     _ = exec!(mode, [adapter_meta, ["FLUSHDB"]], [])
+
     size
   end
 
@@ -671,7 +694,9 @@ defmodule NebulexRedisAdapter do
   end
 
   defp execute_query(nil, adapter_meta) do
-    for key <- execute_query("*", adapter_meta), do: decode(key)
+    "*"
+    |> execute_query(adapter_meta)
+    |> Enum.map(&decode/1)
   end
 
   defp execute_query(pattern, %{mode: mode} = adapter_meta) when is_binary(pattern) do

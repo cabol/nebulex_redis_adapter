@@ -12,6 +12,7 @@ defmodule NebulexRedisAdapter.Encoder do
 
   def encode(data, opts) do
     opts = Keyword.take(opts, [:compressed, :minor_version])
+
     :erlang.term_to_binary(data, opts)
   end
 

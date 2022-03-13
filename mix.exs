@@ -2,8 +2,8 @@ defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/cabol/nebulex_redis_adapter"
-  @version "2.1.2"
-  @nbx_vsn "2.3.0"
+  @version "2.2.0-dev"
+  @nbx_vsn "2.3.1"
 
   def project do
     [
@@ -41,7 +41,9 @@ defmodule NebulexRedisAdapter.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   def application do
-    []
+    [
+      extra_applications: [:logger]
+    ]
   end
 
   defp deps do
@@ -49,7 +51,7 @@ defmodule NebulexRedisAdapter.MixProject do
       nebulex_dep(),
       {:redix, "~> 1.1"},
       {:crc, "~> 0.10", optional: true},
-      {:jchash, "~> 0.1.2", optional: true},
+      {:jchash, "~> 0.1.3", optional: true},
       {:telemetry, "~> 0.4 or ~> 1.0", optional: true},
 
       # Test & Code Analysis

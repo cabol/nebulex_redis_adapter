@@ -95,6 +95,7 @@ defmodule NebulexRedisAdapter.ClientCluster do
 
   defp get_node(module, nodes, key) do
     index = module.hash_slot(key, length(nodes))
+
     Enum.at(nodes, index)
   end
 

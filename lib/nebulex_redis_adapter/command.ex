@@ -4,11 +4,30 @@ defmodule NebulexRedisAdapter.Command do
 
   alias NebulexRedisAdapter.{ClientCluster, Pool, RedisCluster}
 
+  ## API
+
+  @doc """
+  Executes a Redis command.
+  """
+  @spec exec(
+          Nebulex.Adapter.adapter_meta(),
+          Redix.command(),
+          Nebulex.Cache.key()
+        ) :: {:ok, term} | {:error, term}
+  def exec(adapter_meta, command, key \\ nil) do
+    adapter_meta
+    |> conn(key)
+    |> Redix.command(command)
+  end
+
+  @doc """
+  Executes a Redis command, but raises an exception if an error occurs.
+  """
   @spec exec!(
           Nebulex.Adapter.adapter_meta(),
           Redix.command(),
           Nebulex.Cache.key()
-        ) :: any | no_return
+        ) :: term
   def exec!(adapter_meta, command, key \\ nil) do
     adapter_meta
     |> conn(key)
@@ -16,11 +35,28 @@ defmodule NebulexRedisAdapter.Command do
     |> handle_command_response()
   end
 
+  @doc """
+  Executes a Redis pipeline.
+  """
+  @spec pipeline(
+          Nebulex.Adapter.adapter_meta(),
+          [Redix.command()],
+          Nebulex.Cache.key()
+        ) :: {:ok, [term]} | {:error, term}
+  def pipeline(adapter_meta, commands, key \\ nil) do
+    adapter_meta
+    |> conn(key)
+    |> Redix.pipeline(commands)
+  end
+
+  @doc """
+  Executes a Redis pipeline, but raises an exception if an error occurs.
+  """
   @spec pipeline!(
           Nebulex.Adapter.adapter_meta(),
           [Redix.command()],
           Nebulex.Cache.key()
-        ) :: [any] | no_return
+        ) :: [term]
   def pipeline!(adapter_meta, commands, key \\ nil) do
     adapter_meta
     |> conn(key)
@@ -63,16 +99,13 @@ defmodule NebulexRedisAdapter.Command do
     response
   end
 
-  defp handle_command_response({:error, %Redix.Error{message: "MOVED" <> _} = error}) do
-    raise error
-  end
-
   defp handle_command_response({:error, reason}) do
     raise reason
   end
 
   defp check_pipeline_errors(results) do
     _ = for %Redix.Error{} = error <- results, do: raise(error)
+
     results
   end
 end
