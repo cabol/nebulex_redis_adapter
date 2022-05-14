@@ -75,6 +75,7 @@ defmodule NebulexRedisAdapter.Cache.EntryExpTest do
       assert cache.ttl(:a) == :infinity
 
       refute cache.expire(:b, 5000)
+      refute cache.expire(:c, :infinity)
 
       assert_raise ArgumentError, ~r"expected ttl to be a valid timeout", fn ->
         cache.expire(:a, "hello")

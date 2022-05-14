@@ -209,10 +209,20 @@ defmodule NebulexRedisAdapter do
 
   ## Queryable API
 
-  Since the queryable API is implemented by using `KEYS` command:
+  Since the queryable API is implemented by using `KEYS` command,
+  keep in mind the following caveats:
 
-    * Only strings (`String.t()`) are allowed as query parameter.
     * Only keys can be queried.
+    * Only strings and predefined queries are allowed as query values.
+
+  ### Predefined queries
+
+    * `nil` - All keys are returned.
+
+    * `{:in, [term]}` - Only the keys in the given key list (`[term]`)
+      are returned. This predefined query is only supported for
+      `c:Nebulex.Cache.delete_all/2`. This is the recommended
+      way of doing bulk delete of keys.
 
   ### Examples
 
@@ -232,13 +242,18 @@ defmodule NebulexRedisAdapter do
       iex> MyApp.RedisCache.all()
       ["age", "firstname", "lastname"]
 
-      iex> stream = TestCache.stream("**name**")
+      iex> stream = MyApp.RedisCache.stream("**name**")
       iex> stream |> Enum.to_list()
       ["firstname", "lastname"]
 
       # get the values for the returned queried keys
       iex> "**name**" |> MyApp.RedisCache.all() |> MyApp.RedisCache.get_all()
       %{"firstname" => "Albert", "lastname" => "Einstein"}
+
+  ### Deleting multiple keys at once (bulk delete)
+
+      iex> MyApp.RedisCache.delete_all({:in, ["foo", "bar"]})
+      2
 
   ## Using the cache for executing a Redis command or pipeline
 
@@ -460,7 +475,7 @@ defmodule NebulexRedisAdapter do
 
   defp mget(hash_slot_key, adapter_meta, keys) do
     adapter_meta
-    |> Command.exec!(["MGET" | for(k <- keys, do: encode(k))], hash_slot_key)
+    |> Command.exec!(["MGET" | Enum.map(keys, &encode/1)], hash_slot_key)
     |> Enum.reduce({keys, %{}}, fn
       nil, {[_key | keys], acc} ->
         {keys, acc}
@@ -641,6 +656,24 @@ defmodule NebulexRedisAdapter do
     _ = exec!(mode, [adapter_meta, ["FLUSHDB"]], [])
 
     size
+  end
+
+  defp do_execute(%{mode: :standalone} = adapter_meta, :delete_all, {:in, keys})
+       when is_list(keys) do
+    _ = Command.exec!(adapter_meta, ["DEL" | Enum.map(keys, &encode/1)])
+
+    length(keys)
+  end
+
+  defp do_execute(adapter_meta, :delete_all, {:in, keys}) when is_list(keys) do
+    :ok =
+      keys
+      |> group_keys_by_hash_slot(adapter_meta)
+      |> Enum.each(fn {hash_slot, keys_group} ->
+        Command.exec!(adapter_meta, ["DEL" | Enum.map(keys_group, &encode/1)], hash_slot)
+      end)
+
+    length(keys)
   end
 
   defp do_execute(adapter_meta, :all, query) do

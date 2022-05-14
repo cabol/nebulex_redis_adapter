@@ -3,7 +3,7 @@ defmodule NebulexRedisAdapter.MixProject do
 
   @source_url "https://github.com/cabol/nebulex_redis_adapter"
   @version "2.2.0"
-  @nbx_vsn "2.3.1"
+  @nbx_vsn "2.3.2"
 
   def project do
     [
@@ -56,15 +56,15 @@ defmodule NebulexRedisAdapter.MixProject do
 
       # Test & Code Analysis
       {:excoveralls, "~> 0.14", only: :test},
-      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
 
       # Benchmark Test
-      {:benchee, "~> 1.0", only: :test},
+      {:benchee, "~> 1.1", only: :test},
       {:benchee_html, "~> 1.0", only: :test},
 
       # Docs
-      {:ex_doc, "~> 0.23", only: [:dev, :test], runtime: false}
+      {:ex_doc, "~> 0.28", only: [:dev, :test], runtime: false}
     ]
   end
 

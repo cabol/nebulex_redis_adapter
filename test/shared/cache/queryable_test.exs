@@ -70,5 +70,23 @@ defmodule NebulexRedisAdapter.Cache.QueryableTest do
       assert cache.delete_all() == 3
       assert cache.count_all() == 0
     end
+
+    test "delete_all/2 (list of keys)", %{cache: cache} do
+      kv = for i <- 1..10, into: %{}, do: {:erlang.phash2(i), i}
+
+      :ok = cache.put_all(kv)
+
+      for {k, v} <- kv do
+        assert cache.get(k) == v
+      end
+
+      assert cache.count_all() == 10
+      assert cache.delete_all({:in, Map.keys(kv)}) == 10
+      assert cache.count_all() == 0
+
+      for {k, _} <- kv do
+        refute cache.get(k)
+      end
+    end
   end
 end

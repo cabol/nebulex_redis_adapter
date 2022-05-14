@@ -16,9 +16,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - elixir: 1.12.x
+          - elixir: 1.13.x
             otp: 24.x
+            style: true
             coverage: true
+            sobelow: true
             dialyzer: true
           - elixir: 1.11.x
             otp: 23.x
@@ -32,20 +34,20 @@ jobs:
       REDIS_CLUSTER_IP: '0.0.0.0'
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Start Redis
         run: docker-compose up -d
 
       - name: Install OTP and Elixir
-        uses: actions/setup-elixir@v1.5.0
+        uses: erlef/setup-beam@v1
         with:
           otp-version: '${{ matrix.otp }}'
           elixir-version: '${{ matrix.elixir }}'
-          experimental-otp: true
 
       - name: Cache deps
-        uses: actions/cache@v1
+        uses: actions/cache@v3
+        id: mix-cache
         with:
           path: deps
           key: >-
@@ -55,49 +57,74 @@ jobs:
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-
 
       - name: Cache _build
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: _build
           key: >-
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-${{
             hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-${{
-            hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-
+
+      - name: Cache nebulex
+        uses: actions/cache@v3
+        id: nbx-setup
+        with:
+          path: _build
+          key: >-
+            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-nebulex-${{
+            hashFiles(format('{0}{1}', github.workspace, '/mix.exs')) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-nebulex-
+
+      - name: Install Nebulex
+        run: mix nbx.setup
+        if: ${{ steps.nbx-setup.outputs.cache-hit != 'true' }}
 
       - name: Install Dependencies
         run: |
           mix local.hex --force
           mix local.rebar --force
-          mix nbx.setup
           mix deps.get
+        if: ${{ steps.mix-cache.outputs.cache-hit != 'true' }}
+
+      - name: Compile code
+        run: mix compile --warnings-as-errors
 
       - name: Run style and code consistency checks
         run: |
-          mix compile --warnings-as-errors
           mix format --check-formatted
           mix credo --strict
+        if: ${{ matrix.style }}
 
       - name: Run tests
         run: |
           epmd -daemon
           mix test --trace
-        if: ${{!matrix.coverage}}
+        if: ${{ !matrix.coverage }}
 
       - name: Run tests with coverage
         run: |
           epmd -daemon
           mix coveralls.github
-        if: ${{matrix.coverage}}
+        if: ${{ matrix.coverage }}
 
-      - name: Cache PLT
-        uses: actions/cache@v1
+      - name: Retrieve PLT Cache
+        uses: actions/cache@v3
+        id: plt-cache
         with:
           path: priv/plts
-          key: '${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-v1'
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plt-v1
+          key: >-
+            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-plts-${{
+            hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}-v0
+        if: ${{ matrix.dialyzer }}
 
-      - name: Run static analysis checks
-        run: mix dialyzer --format short
-        if: ${{matrix.dialyzer}}
+      - name: Create PLTs
+        run: |
+          mkdir -p priv/plts
+          mix dialyzer --plt
+        if: ${{ matrix.dialyzer && steps.plt-cache.outputs.cache-hit != 'true' }}
+
+      - name: Run dialyzer
+        run: mix dialyzer --no-check --halt-exit-status
+        if: ${{ matrix.dialyzer && steps.plt-cache.outputs.cache-hit != 'true' }}

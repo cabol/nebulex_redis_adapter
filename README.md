@@ -161,7 +161,7 @@ config :my_app, MyApp.ClusteredCache,
   # Nodes config (each node has its own options)
   nodes: [
     node1: [
-      # Node poll size
+      # Node pool size
       pool_size: 10,
 
       # Redix options to establish the pool of connections against this node
