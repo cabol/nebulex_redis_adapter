@@ -66,20 +66,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-
 
-      - name: Cache nebulex
-        uses: actions/cache@v3
-        id: nbx-setup
-        with:
-          path: _build
-          key: >-
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-nebulex-${{
-            hashFiles(format('{0}{1}', github.workspace, '/mix.exs')) }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-nebulex-
-
       - name: Install Nebulex
         run: mix nbx.setup
-        if: ${{ steps.nbx-setup.outputs.cache-hit != 'true' }}
 
       - name: Install Dependencies
         run: |

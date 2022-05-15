@@ -22,7 +22,7 @@ defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
     registry = Keyword.fetch!(opts, :registry)
     pool_size = Keyword.fetch!(opts, :pool_size)
 
-    [[host, port, _id] = _master | _replicas] = Keyword.fetch!(opts, :nodes)
+    [[host, port | _tail] = _master | _replicas] = Keyword.fetch!(opts, :nodes)
 
     conn_opts =
       opts
