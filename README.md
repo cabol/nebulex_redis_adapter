@@ -50,7 +50,7 @@ After installing, we can define our cache to use Redis adapter as follows:
 ```elixir
 defmodule MyApp.RedisCache do
   use Nebulex.Cache,
-    otp_app: :nebulex,
+    otp_app: :my_app,
     adapter: NebulexRedisAdapter
 end
 ```
@@ -97,7 +97,7 @@ Then we can define our cache which will use **Redis Cluster**:
 ```elixir
 defmodule MyApp.RedisClusterCache do
   use Nebulex.Cache,
-    otp_app: :nebulex,
+    otp_app: :my_app,
     adapter: NebulexRedisAdapter
 end
 ```
@@ -146,7 +146,7 @@ We define our cache normally:
 ```elixir
 defmodule MyApp.ClusteredCache do
   use Nebulex.Cache,
-    otp_app: :nebulex,
+    otp_app: :my_app,
     adapter: NebulexRedisAdapter
 end
 ```
@@ -237,7 +237,7 @@ This example shows how the setup a distributed cache using
 ```elixir
 defmodule MyApp.DistributedCache do
   use Nebulex.Cache,
-    otp_app: :nebulex,
+    otp_app: :my_app,
     adapter: Nebulex.Adapters.Partitioned,
     primary_storage_adapter: NebulexRedisAdapter
 end
