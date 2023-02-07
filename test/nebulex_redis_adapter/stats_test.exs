@@ -20,7 +20,8 @@ defmodule NebulexRedisAdapter.StatsTest do
 
   describe "c:NebulexRedisAdapter.stats/1" do
     test "returns valid %Stats{}" do
-      size = Cache.count_all()
+      size = Cache.delete_all()
+
       refute Cache.get("stats")
       assert Cache.put("stats", "stats") == :ok
       assert Cache.get("stats") == "stats"
@@ -29,7 +30,7 @@ defmodule NebulexRedisAdapter.StatsTest do
       refute Cache.get("stats")
       assert Cache.put_new("stats", "stats")
       assert Cache.replace("stats", "stats stats")
-      assert Cache.delete_all() == size + 1
+      assert Cache.delete_all() == 1
 
       assert stats = Cache.stats()
       assert stats.measurements.evictions == size + 2

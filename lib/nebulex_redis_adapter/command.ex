@@ -104,8 +104,9 @@ defmodule NebulexRedisAdapter.Command do
   end
 
   defp check_pipeline_errors(results) do
-    _ = for %Redix.Error{} = error <- results, do: raise(error)
-
-    results
+    Enum.map(results, fn
+      %Redix.Error{} = error -> raise error
+      result -> result
+    end)
   end
 end
