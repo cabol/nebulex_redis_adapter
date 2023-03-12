@@ -1,4 +1,4 @@
-defprotocol NebulexRedisAdapter.Codec.StringProto do
+defprotocol NebulexRedisAdapter.Codec.StringCodec do
   @moduledoc """
   Protocol controlling how a key/value is encoded to a string
   and how a string is decoded into an Elixir term.
@@ -21,7 +21,7 @@ defprotocol NebulexRedisAdapter.Codec.StringProto do
   def decode(data, opts \\ [])
 end
 
-defimpl NebulexRedisAdapter.Codec.StringProto, for: BitString do
+defimpl NebulexRedisAdapter.Codec.StringCodec, for: BitString do
   def encode(binary, _opts) when is_binary(binary) do
     binary
   end
@@ -42,7 +42,7 @@ defimpl NebulexRedisAdapter.Codec.StringProto, for: BitString do
   end
 end
 
-defimpl NebulexRedisAdapter.Codec.StringProto, for: Any do
+defimpl NebulexRedisAdapter.Codec.StringCodec, for: Any do
   def encode(data, opts) do
     opts = Keyword.take(opts, [:compressed, :minor_version])
 

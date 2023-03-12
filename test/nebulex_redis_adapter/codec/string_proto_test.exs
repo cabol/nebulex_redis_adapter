@@ -1,12 +1,12 @@
-defmodule NebulexRedisAdapter.Codec.StringProtoTest do
+defmodule NebulexRedisAdapter.Codec.StringCodecTest do
   use ExUnit.Case, async: true
 
-  alias NebulexRedisAdapter.Codec.StringProto
+  alias NebulexRedisAdapter.Codec.StringCodec
 
   describe "encode/2" do
     test "error: raises Protocol.UndefinedError exception" do
       assert_raise Protocol.UndefinedError, ~r"cannot encode a bitstring to a string", fn ->
-        StringProto.encode(<<1::1>>)
+        StringCodec.encode(<<1::1>>)
       end
     end
   end

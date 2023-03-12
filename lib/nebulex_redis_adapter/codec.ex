@@ -31,19 +31,19 @@ defmodule NebulexRedisAdapter.Codec do
     quote do
       @behaviour NebulexRedisAdapter.Codec
 
-      alias NebulexRedisAdapter.Codec.StringProto
+      alias NebulexRedisAdapter.Codec.StringCodec
 
       @impl true
-      defdelegate encode_key(key, opts \\ []), to: StringProto, as: :encode
+      defdelegate encode_key(key, opts \\ []), to: StringCodec, as: :encode
 
       @impl true
-      defdelegate encode_value(value, opts \\ []), to: StringProto, as: :encode
+      defdelegate encode_value(value, opts \\ []), to: StringCodec, as: :encode
 
       @impl true
-      defdelegate decode_key(key, opts \\ []), to: StringProto, as: :decode
+      defdelegate decode_key(key, opts \\ []), to: StringCodec, as: :decode
 
       @impl true
-      defdelegate decode_value(value, opts \\ []), to: StringProto, as: :decode
+      defdelegate decode_value(value, opts \\ []), to: StringCodec, as: :decode
 
       # Overridable callbacks
       defoverridable encode_key: 2, encode_value: 2, decode_key: 2, decode_value: 2
