@@ -5,25 +5,131 @@ services:
     image: "redis:alpine"
     ports:
       - "6379:6379"
+    networks:
+      - redis_net
 
   redis-standalone1:
     image: "redis:alpine"
     ports:
       - "9001:6379"
+    networks:
+      - redis_net
 
   redis-standalone2:
     image: "redis:alpine"
     ports:
       - "9002:6379"
+    networks:
+      - redis_net
 
   redis-standalone3:
     image: "redis:alpine"
     ports:
       - "9003:6379"
+    networks:
+      - redis_net
 
   redis-cluster:
-    image: grokzen/redis-cluster
+    image: grokzen/redis-cluster:6.2.10
     ports:
       - '7000-7005:7000-7005'
     environment:
-      - REDIS_CLUSTER_IP=0.0.0.0
+      - 'REDIS_CLUSTER_IP=0.0.0.0'
+
+  cluster-initiator:
+    image: 'redis:7-alpine'
+    command: >
+      redis-cli -a password --cluster create 10.10.10.11:6380 10.10.10.12:6381 10.10.10.13:6382 10.10.10.14:6383 10.10.10.15:6384 10.10.10.16:6385 --cluster-replicas 1 --cluster-yes
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.10
+    depends_on:
+      - redis-node-0
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
+  redis-node-0:
+    image: 'redis:7-alpine'
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - '6380:6380'
+    volumes:
+      - redis-node-0-data:/var/lib/redis
+      - ./test/docker/cluster/redis-node-0.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.11
+  redis-node-1:
+    image: 'redis:7-alpine'
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - '6381:6381'
+    volumes:
+      - redis-node-1-data:/var/lib/redis
+      - ./test/docker/cluster/redis-node-1.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.12
+  redis-node-2:
+    image: 'redis:7-alpine'
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - '6382:6382'
+    volumes:
+      - redis-node-2-data:/var/lib/redis
+      - ./test/docker/cluster/redis-node-2.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.13
+  redis-node-3:
+    image: 'redis:7-alpine'
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - '6383:6383'
+    volumes:
+      - redis-node-3-data:/var/lib/redis
+      - ./test/docker/cluster/redis-node-3.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.14
+  redis-node-4:
+    image: 'redis:7-alpine'
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - '6384:6384'
+    volumes:
+      - redis-node-4-data:/var/lib/redis
+      - ./test/docker/cluster/redis-node-4.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.15
+  redis-node-5:
+    image: 'redis:7-alpine'
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - '6385:6385'
+    volumes:
+      - redis-node-5-data:/var/lib/redis
+      - ./test/docker/cluster/redis-node-5.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      redis_cluster_net:
+        ipv4_address: 10.10.10.16
+
+volumes:
+  redis-node-0-data:
+  redis-node-1-data:
+  redis-node-2-data:
+  redis-node-3-data:
+  redis-node-4-data:
+  redis-node-5-data:
+
+networks:
+  redis_net:
+    driver: bridge
+  redis_cluster_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24

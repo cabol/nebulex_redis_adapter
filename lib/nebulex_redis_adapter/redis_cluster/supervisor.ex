@@ -21,15 +21,15 @@ defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
     slot_id = Keyword.fetch!(opts, :slot_id)
     registry = Keyword.fetch!(opts, :registry)
     pool_size = Keyword.fetch!(opts, :pool_size)
-
-    [[host, port | _tail] = _master | _replicas] = Keyword.fetch!(opts, :nodes)
+    master_host = Keyword.fetch!(opts, :master_host)
+    master_port = Keyword.fetch!(opts, :master_port)
 
     conn_opts =
       opts
       |> Keyword.get(:conn_opts, [])
       |> Keyword.delete(:url)
-      |> Keyword.put_new(:host, host)
-      |> Keyword.put_new(:port, port)
+      |> Keyword.put_new(:host, master_host)
+      |> Keyword.put_new(:port, master_port)
 
     children =
       Pool.register_names(registry, slot_id, pool_size, fn conn_name ->

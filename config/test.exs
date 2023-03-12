@@ -31,23 +31,24 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.ClientCluster,
     ]
   ]
 
-# Redis Cluster mode
+# Redis Cluster mode (with Redis 7)
 config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisCluster,
   mode: :redis_cluster,
   master_nodes: [
     [
       host: "127.0.0.1",
-      port: 7000
+      port: 6380
     ],
     [
-      url: "redis://127.0.0.1:7001"
+      url: "redis://127.0.0.1:6381"
     ],
     [
-      url: "redis://127.0.0.1:7002"
+      url: "redis://127.0.0.1:6382"
     ]
   ],
   conn_opts: [
-    host: "127.0.0.1"
+    host: "127.0.0.1",
+    password: "password"
   ]
 
 # Redis Cluster mode with errors
