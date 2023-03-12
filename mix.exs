@@ -3,7 +3,8 @@ defmodule NebulexRedisAdapter.MixProject do
 
   @source_url "https://github.com/cabol/nebulex_redis_adapter"
   @version "2.2.0"
-  @nbx_vsn "2.3.2"
+  @nbx_tag "2.4.2"
+  @nbx_vsn "2.4"
 
   def project do
     [
@@ -49,28 +50,29 @@ defmodule NebulexRedisAdapter.MixProject do
   defp deps do
     [
       nebulex_dep(),
-      {:redix, "~> 1.1"},
+      {:redix, "~> 1.2"},
       {:crc, "~> 0.10", optional: true},
       {:jchash, "~> 0.1.3", optional: true},
       {:telemetry, "~> 0.4 or ~> 1.0", optional: true},
 
       # Test & Code Analysis
-      {:excoveralls, "~> 0.14", only: :test},
+      {:excoveralls, "~> 0.15", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.2", only: [:dev, :test], runtime: false},
+      {:mimic, "~> 1.7", only: :test},
 
       # Benchmark Test
       {:benchee, "~> 1.1", only: :test},
       {:benchee_html, "~> 1.0", only: :test},
 
       # Docs
-      {:ex_doc, "~> 0.28", only: [:dev, :test], runtime: false}
+      {:ex_doc, "~> 0.29", only: [:dev, :test], runtime: false}
     ]
   end
 
   defp nebulex_dep do
     if path = System.get_env("NEBULEX_PATH") do
-      {:nebulex, "~> #{@nbx_vsn}", path: path}
+      {:nebulex, "~> #{@nbx_tag}", path: path}
     else
       {:nebulex, "~> #{@nbx_vsn}"}
     end
@@ -80,7 +82,7 @@ defmodule NebulexRedisAdapter.MixProject do
     [
       "nbx.setup": [
         "cmd rm -rf nebulex",
-        "cmd git clone --depth 1 --branch v#{@nbx_vsn} https://github.com/cabol/nebulex"
+        "cmd git clone --depth 1 --branch v#{@nbx_tag} https://github.com/cabol/nebulex"
       ],
       check: [
         "compile --warnings-as-errors",
@@ -117,7 +119,6 @@ defmodule NebulexRedisAdapter.MixProject do
       flags: [
         :unmatched_returns,
         :error_handling,
-        :race_conditions,
         :no_opaque,
         :unknown,
         :no_return

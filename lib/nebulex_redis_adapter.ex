@@ -34,6 +34,9 @@ defmodule NebulexRedisAdapter do
     * `:conn_opts` - Redis client options (`Redix` options in this case).
       For more information about connection options, see `Redix` docs.
 
+    * `:codec` - Custom codec module implementing the
+      `NebulexRedisAdapter.Codec` behaviour.
+
   ## Telemetry events
 
   This adapter emits the recommended Telemetry events.
@@ -50,10 +53,13 @@ defmodule NebulexRedisAdapter do
 
   ## Data Types
 
-  This adapter only works with strings internally, which means the given
-  Elixir terms are encoded to binaries before executing the Redis command.
-  The encoding/decoding process is performed by the adapter under-the-hood,
-  so it is completely transparent for the user.
+  Currently. the adapter only works with strings, which means a given Elixir
+  term is encoded to a binary/string before executing a command. Similarly,
+  a returned binary from Redis after executing a command is decoded into an
+  Elixir term. The encoding/decoding process is performed by the adapter
+  under-the-hood. However, it is possible to provide a custom codec via the
+  option `:codec`. The value must be module implementing the
+  `NebulexRedisAdapter.Codec` behaviour.
 
   **NOTE:** Support for other Redis Data Types is in the roadmap.
 
@@ -311,15 +317,24 @@ defmodule NebulexRedisAdapter do
   @behaviour Nebulex.Adapter.Entry
   @behaviour Nebulex.Adapter.Queryable
 
+  # Inherit default stats implementation
+  use Nebulex.Adapter.Stats
+
+  # Inherit default codec implementation
+  use NebulexRedisAdapter.Codec
+
   import Nebulex.Adapter
   import Nebulex.Helpers
-  import NebulexRedisAdapter.Encoder
-
-  use Nebulex.Adapter.Stats
 
   alias Nebulex.Adapter
   alias Nebulex.Adapter.Stats
-  alias NebulexRedisAdapter.{ClientCluster, Command, Connection, RedisCluster}
+
+  alias NebulexRedisAdapter.{
+    ClientCluster,
+    Command,
+    Connection,
+    RedisCluster
+  }
 
   ## Nebulex.Adapter
 
@@ -380,6 +395,9 @@ defmodule NebulexRedisAdapter do
     # Local registry
     registry = normalize_module_name([name, Registry])
 
+    # Redis codec for encoding/decoding keys and values
+    codec_meta = assert_codec!(opts)
+
     # Resolve the pool size
     pool_size =
       get_option(
@@ -403,20 +421,22 @@ defmodule NebulexRedisAdapter do
       end
 
     # Init adapter metadata
-    adapter_meta = %{
-      cache_pid: self(),
-      name: name,
-      mode: mode,
-      keyslot: keyslot,
-      nodes: nodes,
-      pool_size: pool_size,
-      stats_counter: stats_counter,
-      registry: registry,
-      started_at: DateTime.utc_now(),
-      default_dt: Keyword.get(opts, :default_data_type, :object),
-      telemetry: Keyword.fetch!(opts, :telemetry),
-      telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
-    }
+    adapter_meta =
+      %{
+        cache_pid: self(),
+        name: name,
+        mode: mode,
+        keyslot: keyslot,
+        nodes: nodes,
+        pool_size: pool_size,
+        stats_counter: stats_counter,
+        registry: registry,
+        started_at: DateTime.utc_now(),
+        default_dt: Keyword.get(opts, :default_data_type, :object),
+        telemetry: Keyword.fetch!(opts, :telemetry),
+        telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
+      }
+      |> Map.merge(codec_meta)
 
     # Init the connections child spec according to the adapter mode
     {conn_child_spec, adapter_meta} = do_init(adapter_meta, opts)
@@ -436,6 +456,21 @@ defmodule NebulexRedisAdapter do
     {:ok, child_spec, adapter_meta}
   end
 
+  defp assert_codec!(opts) do
+    codec = Keyword.get(opts, :codec, __MODULE__)
+    codec_opts = Keyword.get(opts, :codec_opts, [])
+
+    _ = assert_behaviour(codec, NebulexRedisAdapter.Codec, "codec")
+
+    %{
+      codec: codec,
+      encode_key_opts: Keyword.get(codec_opts, :encode_key, []),
+      encode_value_opts: Keyword.get(codec_opts, :encode_value, []),
+      decode_key_opts: Keyword.get(codec_opts, :decode_key, []),
+      decode_value_opts: Keyword.get(codec_opts, :decode_value, [])
+    }
+  end
+
   defp do_init(%{mode: :standalone} = adapter_meta, opts) do
     Connection.init(adapter_meta, opts)
   end
@@ -452,7 +487,15 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   defspan get(adapter_meta, key, _opts) do
-    with_pipeline(adapter_meta, key, [["GET", encode(key)]])
+    %{
+      codec: codec,
+      encode_key_opts: enc_key_opts,
+      decode_value_opts: dec_value_opts
+    } = adapter_meta
+
+    adapter_meta
+    |> Command.exec!(["GET", codec.encode_key(key, enc_key_opts)], key)
+    |> codec.decode_value(dec_value_opts)
   end
 
   @impl true
@@ -473,24 +516,41 @@ defmodule NebulexRedisAdapter do
     end)
   end
 
-  defp mget(hash_slot_key, adapter_meta, keys) do
+  defp mget(
+         hash_slot_key,
+         %{
+           codec: codec,
+           encode_key_opts: enc_key_opts,
+           decode_value_opts: dec_value_opts
+         } = adapter_meta,
+         keys
+       ) do
     adapter_meta
-    |> Command.exec!(["MGET" | Enum.map(keys, &encode/1)], hash_slot_key)
+    |> Command.exec!(
+      ["MGET" | Enum.map(keys, &codec.encode_key(&1, enc_key_opts))],
+      hash_slot_key
+    )
     |> Enum.reduce({keys, %{}}, fn
       nil, {[_key | keys], acc} ->
         {keys, acc}
 
       value, {[key | keys], acc} ->
-        {keys, Map.put(acc, key, decode(value))}
+        {keys, Map.put(acc, key, codec.decode_value(value, dec_value_opts))}
     end)
     |> elem(1)
   end
 
   @impl true
-  defspan put(adapter_meta, key, value, ttl, on_write, opts) do
+  defspan put(adapter_meta, key, value, ttl, on_write, _opts) do
+    %{
+      codec: codec,
+      encode_key_opts: enc_key_opts,
+      encode_value_opts: enc_value_opts
+    } = adapter_meta
+
+    redis_k = codec.encode_key(key, enc_key_opts)
+    redis_v = codec.encode_value(value, enc_value_opts)
     cmd_opts = cmd_opts(action: on_write, ttl: fix_ttl(ttl))
-    redis_k = encode(key)
-    redis_v = encode(value, opts)
 
     case Command.exec!(adapter_meta, ["SET", redis_k, redis_v | cmd_opts], key) do
       "OK" -> true
@@ -499,23 +559,33 @@ defmodule NebulexRedisAdapter do
   end
 
   @impl true
-  defspan put_all(adapter_meta, entries, ttl, on_write, opts) do
+  defspan put_all(adapter_meta, entries, ttl, on_write, _opts) do
     ttl = fix_ttl(ttl)
 
     case adapter_meta.mode do
       :standalone ->
-        do_put_all(adapter_meta, nil, entries, ttl, on_write, opts)
+        do_put_all(adapter_meta, nil, entries, ttl, on_write)
 
       _ ->
         entries
         |> group_keys_by_hash_slot(adapter_meta)
         |> Enum.reduce(:ok, fn {hash_slot, group}, acc ->
-          acc && do_put_all(adapter_meta, hash_slot, group, ttl, on_write, opts)
+          acc && do_put_all(adapter_meta, hash_slot, group, ttl, on_write)
         end)
     end
   end
 
-  defp do_put_all(adapter_meta, hash_slot, entries, ttl, on_write, opts) do
+  defp do_put_all(
+         %{
+           codec: codec,
+           encode_key_opts: enc_key_opts,
+           encode_value_opts: enc_value_opts
+         } = adapter_meta,
+         hash_slot,
+         entries,
+         ttl,
+         on_write
+       ) do
     cmd =
       case on_write do
         :put -> "MSET"
@@ -524,14 +594,14 @@ defmodule NebulexRedisAdapter do
 
     {mset, expire} =
       Enum.reduce(entries, {[cmd], []}, fn {key, val}, {acc1, acc2} ->
-        redis_k = encode(key)
+        redis_k = codec.encode_key(key, enc_key_opts)
 
         acc2 =
           if is_integer(ttl),
             do: [["EXPIRE", redis_k, ttl] | acc2],
             else: acc2
 
-        {[encode(val, opts), redis_k | acc1], acc2}
+        {[codec.encode_value(val, enc_value_opts), redis_k | acc1], acc2}
       end)
 
     adapter_meta
@@ -546,21 +616,21 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   defspan delete(adapter_meta, key, _opts) do
-    _ = Command.exec!(adapter_meta, ["DEL", encode(key)], key)
+    _ = Command.exec!(adapter_meta, ["DEL", enc_key(adapter_meta, key)], key)
 
     :ok
   end
 
   @impl true
   defspan take(adapter_meta, key, _opts) do
-    redis_k = encode(key)
+    redis_k = enc_key(adapter_meta, key)
 
     with_pipeline(adapter_meta, key, [["GET", redis_k], ["DEL", redis_k]])
   end
 
   @impl true
   defspan has_key?(adapter_meta, key) do
-    case Command.exec!(adapter_meta, ["EXISTS", encode(key)], key) do
+    case Command.exec!(adapter_meta, ["EXISTS", enc_key(adapter_meta, key)], key) do
       1 -> true
       0 -> false
     end
@@ -568,7 +638,7 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   defspan ttl(adapter_meta, key) do
-    case Command.exec!(adapter_meta, ["TTL", encode(key)], key) do
+    case Command.exec!(adapter_meta, ["TTL", enc_key(adapter_meta, key)], key) do
       -1 -> :infinity
       -2 -> nil
       ttl -> ttl * 1000
@@ -581,7 +651,7 @@ defmodule NebulexRedisAdapter do
   end
 
   defp do_expire(adapter_meta, key, :infinity) do
-    redis_k = encode(key)
+    redis_k = enc_key(adapter_meta, key)
 
     case Command.pipeline!(adapter_meta, [["TTL", redis_k], ["PERSIST", redis_k]], key) do
       [-2, 0] -> false
@@ -590,7 +660,9 @@ defmodule NebulexRedisAdapter do
   end
 
   defp do_expire(adapter_meta, key, ttl) do
-    case Command.exec!(adapter_meta, ["EXPIRE", encode(key), fix_ttl(ttl)], key) do
+    redis_k = enc_key(adapter_meta, key)
+
+    case Command.exec!(adapter_meta, ["EXPIRE", redis_k, fix_ttl(ttl)], key) do
       1 -> true
       0 -> false
     end
@@ -598,7 +670,9 @@ defmodule NebulexRedisAdapter do
 
   @impl true
   defspan touch(adapter_meta, key) do
-    case Command.exec!(adapter_meta, ["TOUCH", encode(key)], key) do
+    redis_k = enc_key(adapter_meta, key)
+
+    case Command.exec!(adapter_meta, ["TOUCH", redis_k], key) do
       1 -> true
       0 -> false
     end
@@ -610,7 +684,7 @@ defmodule NebulexRedisAdapter do
   end
 
   defp do_update_counter(adapter_meta, key, incr, :infinity, default) do
-    redis_k = encode(key)
+    redis_k = enc_key(adapter_meta, key)
 
     adapter_meta
     |> maybe_incr_default(key, redis_k, default)
@@ -618,7 +692,7 @@ defmodule NebulexRedisAdapter do
   end
 
   defp do_update_counter(adapter_meta, key, incr, ttl, default) do
-    redis_k = encode(key)
+    redis_k = enc_key(adapter_meta, key)
 
     adapter_meta
     |> maybe_incr_default(key, redis_k, default)
@@ -660,17 +734,22 @@ defmodule NebulexRedisAdapter do
 
   defp do_execute(%{mode: :standalone} = adapter_meta, :delete_all, {:in, keys})
        when is_list(keys) do
-    _ = Command.exec!(adapter_meta, ["DEL" | Enum.map(keys, &encode/1)])
+    _ = Command.exec!(adapter_meta, ["DEL" | Enum.map(keys, &enc_key(adapter_meta, &1))])
 
     length(keys)
   end
 
-  defp do_execute(adapter_meta, :delete_all, {:in, keys}) when is_list(keys) do
+  defp do_execute(adapter_meta, :delete_all, {:in, keys})
+       when is_list(keys) do
     :ok =
       keys
       |> group_keys_by_hash_slot(adapter_meta)
       |> Enum.each(fn {hash_slot, keys_group} ->
-        Command.exec!(adapter_meta, ["DEL" | Enum.map(keys_group, &encode/1)], hash_slot)
+        Command.exec!(
+          adapter_meta,
+          ["DEL" | Enum.map(keys_group, &enc_key(adapter_meta, &1))],
+          hash_slot
+        )
       end)
 
     length(keys)
@@ -703,11 +782,15 @@ defmodule NebulexRedisAdapter do
 
   ## Private Functions
 
-  defp with_pipeline(adapter_meta, key, pipeline) do
+  defp with_pipeline(
+         %{codec: codec, decode_value_opts: dec_val_opts} = adapter_meta,
+         key,
+         pipeline
+       ) do
     adapter_meta
     |> Command.pipeline!(pipeline, key)
     |> hd()
-    |> decode()
+    |> codec.decode_value(dec_val_opts)
   end
 
   defp cmd_opts(keys), do: Enum.reduce(keys, [], &cmd_opts/2)
@@ -726,10 +809,10 @@ defmodule NebulexRedisAdapter do
           "expected ttl: to be an integer >= 1000 or :infinity, got: #{inspect(ttl)}"
   end
 
-  defp execute_query(nil, adapter_meta) do
+  defp execute_query(nil, %{codec: codec} = adapter_meta) do
     "*"
     |> execute_query(adapter_meta)
-    |> Enum.map(&decode/1)
+    |> Enum.map(&codec.decode_key/1)
   end
 
   defp execute_query(pattern, %{mode: mode} = adapter_meta) when is_binary(pattern) do
@@ -759,4 +842,20 @@ defmodule NebulexRedisAdapter do
   defp group_keys_by_hash_slot(enum, %{mode: :redis_cluster, keyslot: keyslot}) do
     RedisCluster.group_keys_by_hash_slot(enum, keyslot)
   end
+
+  defp enc_key(%{codec: codec, encode_key_opts: enc_key_opts}, key) do
+    codec.encode_key(key, enc_key_opts)
+  end
+
+  # defp enc_val(%{codec: codec, encode_value_opts: enc_val_opts}, val) do
+  #   codec.encode_value(val, enc_val_opts)
+  # end
+
+  # defp dec_key(%{codec: codec, decode_key_opts: dec_key_opts}, key) do
+  #   codec.decode_key(key, dec_key_opts)
+  # end
+
+  # defp dec_val(%{codec: codec, decode_value_opts: dec_val_opts}, key) do
+  #   codec.decode_key(key, dec_val_opts)
+  # end
 end

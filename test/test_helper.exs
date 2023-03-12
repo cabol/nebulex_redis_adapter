@@ -25,4 +25,11 @@ for file <- File.ls!("test/shared"), not File.dir?("test/shared/" <> file) do
   Code.require_file("./shared/" <> file, __DIR__)
 end
 
+# Mocks
+[
+  Redix,
+  NebulexRedisAdapter.Pool
+]
+|> Enum.each(&Mimic.copy/1)
+
 ExUnit.start()
