@@ -96,21 +96,12 @@ defmodule NebulexRedisAdapter do
 
       config :my_app, MyApp.RedisClusterCache,
         mode: :redis_cluster,
-        master_nodes: [
-          [
-            host: "127.0.0.1",
-            port: 7000
-          ],
-          [
-            url: "redis://127.0.0.1:7001"
-          ],
-          [
-            url: "redis://127.0.0.1:7002"
-          ]
-        ],
+        # Configuration endpoint
         conn_opts: [
-          # Redix options, except `:host` and `:port`; unless we have a cluster
-          # of nodes with the same host and/or port, which doesn't make sense.
+          host: "127.0.0.1",
+          port: 6379,
+          # Add the password if 'requirepass' is on
+          password: "password"
         ]
 
   ### Redis Cluster Options
@@ -118,25 +109,22 @@ defmodule NebulexRedisAdapter do
   In addition to shared options, `:redis_cluster` mode supports the following
   options:
 
-    * `:master_nodes` - The list with the configuration for the Redis cluster
-      master nodes. The configuration for each master nodes contains the same
-      options as `:conn_opts`. The adapter traverses the list trying to
-      establish connection at least with one of them and get the cluster slots
-      to finally setup the Redis cluster from client side properly. If one
-      fails, the adapter retries with the next in the list, that's why at least
-      one master node must be set.
+    * `:conn_opts` - Same as shared options but for Redis cluster mode, it
+      defines the Redis client options but for the configuration endpoint.
+      This is where the client should connect to send the **"CLUSTER SHARDS"**
+      (Redis >= 7) or **"CLUSTER SLOTS"** (Redis < 7) command to get the cluster
+      information and set it up on the client side.
 
-    * `:conn_opts` - Same as shared options (optional). The `:conn_opts` will
-      be applied to each connection pool with the cluster (they will override
-      the host and port retrieved from cluster slots info). For that reason,
-      be careful when setting `:host` or `:port` options since they will be
-      used globally and can cause connection issues. Normally, we add here
-      the desired client options except `:host` and `:port`. If you have a
-      cluster with the same host for all nodes, in that case make sense to
-      add also the `:host` option.
-
-    * `:pool_size` - Same as shared options (optional). It applies to all
+    * `:pool_size` - (Optional) Same as shared options. It applies to all
       cluster slots, meaning all connection pools will have the same size.
+
+    * `:override_master_host` - (Optional) Defines whether the given master host
+      should be overridden with the configuration endpoint or not. Defaults to
+      `false`. By default, the adapter uses the host returned by the
+      **"CLUSTER SHARDS"** (Redis >= 7) or **"CLUSTER SLOTS"** (Redis < 7)
+      command. One may consider set it to `true` for tests when using Docker
+      for example, or when Redis nodes are behind a load balancer that Redis
+      doesn't know the endpoint of. See Redis docs for more information.
 
   ## Client-side cluster
 

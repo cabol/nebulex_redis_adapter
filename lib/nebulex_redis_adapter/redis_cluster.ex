@@ -15,11 +15,8 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
   @spec init(adapter_meta, Keyword.t()) :: {Supervisor.child_spec(), adapter_meta}
   def init(%{name: name, registry: registry, pool_size: pool_size} = adapter_meta, opts) do
-    # Create a connection and retrieve hash slots map
-    cluster_shards =
-      opts
-      |> get_master_nodes()
-      |> get_cluster_shards()
+    # Get the hash slots topology
+    cluster_shards = get_cluster_shards(opts)
 
     # Init ETS table to store hash slots
     cluster_shards_tab = init_cluster_shards_table(name)
@@ -129,39 +126,28 @@ defmodule NebulexRedisAdapter.RedisCluster do
     ])
   end
 
-  defp get_master_nodes(opts) do
-    conn_opts = Connection.conn_opts(opts)
-
-    for master_node_opts <- Keyword.get(opts, :master_nodes, [[]]) do
-      Keyword.merge(conn_opts, master_node_opts)
-    end
-  end
-
-  defp get_cluster_shards(master_nodes) do
-    result =
-      Enum.reduce_while(master_nodes, [], fn conn_opts, _acc ->
-        with {:ok, conn} <- connect(conn_opts),
-             {:ok, cluster_info} <- cluster_info(conn),
-             command = cluster_command(cluster_info["redis_version"]),
-             {:ok, cluster_info} <- Redix.command(conn, command) do
-          {:halt, parse_cluster_info(cluster_info)}
-        else
-          {:error, _} = error -> {:cont, error}
-        end
-      end)
-
-    with {:error, reason} <- result do
-      exit(reason)
+  defp get_cluster_shards(opts) do
+    with {:ok, conn, config_endpoint} <- opts |> Connection.conn_opts() |> connect(),
+         {:ok, cluster_info} <- cluster_info(conn),
+         command = cluster_command(cluster_info["redis_version"]),
+         {:ok, cluster_info} <- Redix.command(conn, command) do
+      parse_cluster_info(cluster_info, config_endpoint, opts)
+    else
+      {:error, reason} -> exit(reason)
     end
   end
 
   defp connect(conn_opts) do
     case Keyword.pop(conn_opts, :url) do
       {nil, conn_opts} ->
-        Redix.start_link(conn_opts)
+        with {:ok, conn} <- Redix.start_link(conn_opts) do
+          {:ok, conn, conn_opts[:host]}
+        end
 
       {url, conn_opts} ->
-        Redix.start_link(url, [name: :redix_cluster] ++ conn_opts)
+        with {:ok, conn} <- Redix.start_link(url, conn_opts) do
+          {:ok, conn, URI.parse(url).host}
+        end
     end
   end
 
@@ -199,9 +185,13 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
   # coveralls-ignore-stop
 
-  defp parse_cluster_info(config) do
+  defp parse_cluster_info(config, config_endpoint, opts) do
+    # Whether the given master host should be overridden with the
+    # configuration endpoint or not
+    override? = Keyword.get(opts, :override_master_host, false)
+
     Enum.reduce(config, [], fn
-      # Redis 7 or higher (["CLUSTER", "SHARDS"])
+      # Redis version >= 7 (["CLUSTER", "SHARDS"])
       ["slots", [start, stop], "nodes", nodes], acc ->
         {host, port} =
           for [
@@ -226,9 +216,28 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
         [{start, stop, host, port} | acc]
 
-      # Redis 6 or lower (["CLUSTER", "SLOTS"])
+      # Redis version < 7 (["CLUSTER", "SLOTS"])
       [start, stop, [host, port | _tail] = _master | _replicas], acc ->
         [{start, stop, host, port} | acc]
     end)
+    |> Enum.map(fn {start, stop, host, port} ->
+      {start, stop, maybe_override_host(host, config_endpoint, override?), port}
+    end)
   end
+
+  defp maybe_override_host(_host, config_endpoint, true) do
+    config_endpoint
+  end
+
+  # coveralls-ignore-start
+
+  defp maybe_override_host(nil, config_endpoint, _override?) do
+    config_endpoint
+  end
+
+  defp maybe_override_host(host, _config_endpoint, _override?) do
+    host
+  end
+
+  # coveralls-ignore-stop
 end

@@ -28,8 +28,8 @@ defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
       opts
       |> Keyword.get(:conn_opts, [])
       |> Keyword.delete(:url)
-      |> Keyword.put_new(:host, master_host)
-      |> Keyword.put_new(:port, master_port)
+      |> Keyword.put(:host, master_host)
+      |> Keyword.put(:port, master_port)
 
     children =
       Pool.register_names(registry, slot_id, pool_size, fn conn_name ->

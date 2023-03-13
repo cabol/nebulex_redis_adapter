@@ -109,24 +109,17 @@ config :my_app, MyApp.RedisClusterCache,
   # Enable redis_cluster mode
   mode: :redis_cluster,
 
-  # Master nodes. There must be at least one, in order the adapter be able to
-  # get the cluster slots and configure the client side automatically.
-  # If one fails, the adapter retries with the next in the list.
-  master_nodes: [
-    [
-      host: "127.0.0.1",
-      port: 7000
-    ],
-    [
-      url: "redis://127.0.0.1:7001"
-    ],
-    # Maybe more master nodes ...
-  ],
-
-  # Redix options, except `:host` and `:port`; unless we have a cluster
-  # of nodes with the same host and/or port, which doesn't make sense.
+  # Configuration endpoint.
+  # Same as shared options but for Redis cluster mode, it
+  # defines the Redis client options but for the configuration endpoint.
+  # This is where the client should connect to send the "CLUSTER SHARDS"
+  # (Redis >= 7) or "CLUSTER SLOTS" (Redis < 7) command to get the cluster
+  # information and set it up on the client side.
   conn_opts: [
-    # Maybe Redix options
+    host: "127.0.0.1",
+    port: 6379,
+    # Add the password if 'requirepass' is on
+    password: "password"
   ]
 ```
 
