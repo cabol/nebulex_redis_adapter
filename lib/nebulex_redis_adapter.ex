@@ -34,8 +34,8 @@ defmodule NebulexRedisAdapter do
     * `:conn_opts` - Redis client options (`Redix` options in this case).
       For more information about connection options, see `Redix` docs.
 
-    * `:codec` - Custom codec module implementing the
-      `NebulexRedisAdapter.Codec` behaviour.
+    * `:serializer` - Custom serializer module implementing the
+      `NebulexRedisAdapter.Serializer` behaviour.
 
   ## Telemetry events
 
@@ -57,9 +57,9 @@ defmodule NebulexRedisAdapter do
   term is encoded to a binary/string before executing a command. Similarly,
   a returned binary from Redis after executing a command is decoded into an
   Elixir term. The encoding/decoding process is performed by the adapter
-  under-the-hood. However, it is possible to provide a custom codec via the
-  option `:codec`. The value must be module implementing the
-  `NebulexRedisAdapter.Codec` behaviour.
+  under-the-hood. However, it is possible to provide a custom serializer via the
+  option `:serializer`. The value must be module implementing the
+  `NebulexRedisAdapter.Serializer` behaviour.
 
   **NOTE:** Support for other Redis Data Types is in the roadmap.
 
@@ -308,8 +308,8 @@ defmodule NebulexRedisAdapter do
   # Inherit default stats implementation
   use Nebulex.Adapter.Stats
 
-  # Inherit default codec implementation
-  use NebulexRedisAdapter.Codec
+  # Inherit default serializer implementation
+  use NebulexRedisAdapter.Serializer
 
   import Nebulex.Adapter
   import Nebulex.Helpers
@@ -383,8 +383,8 @@ defmodule NebulexRedisAdapter do
     # Local registry
     registry = normalize_module_name([name, Registry])
 
-    # Redis codec for encoding/decoding keys and values
-    codec_meta = assert_codec!(opts)
+    # Redis serializer for encoding/decoding keys and values
+    serializer_meta = assert_serializer!(opts)
 
     # Resolve the pool size
     pool_size =
@@ -424,7 +424,7 @@ defmodule NebulexRedisAdapter do
         telemetry: Keyword.fetch!(opts, :telemetry),
         telemetry_prefix: Keyword.fetch!(opts, :telemetry_prefix)
       }
-      |> Map.merge(codec_meta)
+      |> Map.merge(serializer_meta)
 
     # Init the connections child spec according to the adapter mode
     {conn_child_spec, adapter_meta} = do_init(adapter_meta, opts)
@@ -444,18 +444,18 @@ defmodule NebulexRedisAdapter do
     {:ok, child_spec, adapter_meta}
   end
 
-  defp assert_codec!(opts) do
-    codec = Keyword.get(opts, :codec, __MODULE__)
-    codec_opts = Keyword.get(opts, :codec_opts, [])
+  defp assert_serializer!(opts) do
+    serializer = Keyword.get(opts, :serializer, __MODULE__)
+    serializer_opts = Keyword.get(opts, :serializer_opts, [])
 
-    _ = assert_behaviour(codec, NebulexRedisAdapter.Codec, "codec")
+    _ = assert_behaviour(serializer, NebulexRedisAdapter.Serializer, "serializer")
 
     %{
-      codec: codec,
-      encode_key_opts: Keyword.get(codec_opts, :encode_key, []),
-      encode_value_opts: Keyword.get(codec_opts, :encode_value, []),
-      decode_key_opts: Keyword.get(codec_opts, :decode_key, []),
-      decode_value_opts: Keyword.get(codec_opts, :decode_value, [])
+      serializer: serializer,
+      encode_key_opts: Keyword.get(serializer_opts, :encode_key, []),
+      encode_value_opts: Keyword.get(serializer_opts, :encode_value, []),
+      decode_key_opts: Keyword.get(serializer_opts, :decode_key, []),
+      decode_value_opts: Keyword.get(serializer_opts, :decode_value, [])
     }
   end
 
@@ -476,14 +476,14 @@ defmodule NebulexRedisAdapter do
   @impl true
   defspan get(adapter_meta, key, _opts) do
     %{
-      codec: codec,
+      serializer: serializer,
       encode_key_opts: enc_key_opts,
       decode_value_opts: dec_value_opts
     } = adapter_meta
 
     adapter_meta
-    |> Command.exec!(["GET", codec.encode_key(key, enc_key_opts)], key)
-    |> codec.decode_value(dec_value_opts)
+    |> Command.exec!(["GET", serializer.encode_key(key, enc_key_opts)], key)
+    |> serializer.decode_value(dec_value_opts)
   end
 
   @impl true
@@ -507,7 +507,7 @@ defmodule NebulexRedisAdapter do
   defp mget(
          hash_slot_key,
          %{
-           codec: codec,
+           serializer: serializer,
            encode_key_opts: enc_key_opts,
            decode_value_opts: dec_value_opts
          } = adapter_meta,
@@ -515,7 +515,7 @@ defmodule NebulexRedisAdapter do
        ) do
     adapter_meta
     |> Command.exec!(
-      ["MGET" | Enum.map(keys, &codec.encode_key(&1, enc_key_opts))],
+      ["MGET" | Enum.map(keys, &serializer.encode_key(&1, enc_key_opts))],
       hash_slot_key
     )
     |> Enum.reduce({keys, %{}}, fn
@@ -523,7 +523,7 @@ defmodule NebulexRedisAdapter do
         {keys, acc}
 
       value, {[key | keys], acc} ->
-        {keys, Map.put(acc, key, codec.decode_value(value, dec_value_opts))}
+        {keys, Map.put(acc, key, serializer.decode_value(value, dec_value_opts))}
     end)
     |> elem(1)
   end
@@ -531,13 +531,13 @@ defmodule NebulexRedisAdapter do
   @impl true
   defspan put(adapter_meta, key, value, ttl, on_write, _opts) do
     %{
-      codec: codec,
+      serializer: serializer,
       encode_key_opts: enc_key_opts,
       encode_value_opts: enc_value_opts
     } = adapter_meta
 
-    redis_k = codec.encode_key(key, enc_key_opts)
-    redis_v = codec.encode_value(value, enc_value_opts)
+    redis_k = serializer.encode_key(key, enc_key_opts)
+    redis_v = serializer.encode_value(value, enc_value_opts)
     cmd_opts = cmd_opts(action: on_write, ttl: fix_ttl(ttl))
 
     case Command.exec!(adapter_meta, ["SET", redis_k, redis_v | cmd_opts], key) do
@@ -565,7 +565,7 @@ defmodule NebulexRedisAdapter do
 
   defp do_put_all(
          %{
-           codec: codec,
+           serializer: serializer,
            encode_key_opts: enc_key_opts,
            encode_value_opts: enc_value_opts
          } = adapter_meta,
@@ -582,14 +582,14 @@ defmodule NebulexRedisAdapter do
 
     {mset, expire} =
       Enum.reduce(entries, {[cmd], []}, fn {key, val}, {acc1, acc2} ->
-        redis_k = codec.encode_key(key, enc_key_opts)
+        redis_k = serializer.encode_key(key, enc_key_opts)
 
         acc2 =
           if is_integer(ttl),
             do: [["EXPIRE", redis_k, ttl] | acc2],
             else: acc2
 
-        {[codec.encode_value(val, enc_value_opts), redis_k | acc1], acc2}
+        {[serializer.encode_value(val, enc_value_opts), redis_k | acc1], acc2}
       end)
 
     adapter_meta
@@ -771,14 +771,14 @@ defmodule NebulexRedisAdapter do
   ## Private Functions
 
   defp with_pipeline(
-         %{codec: codec, decode_value_opts: dec_val_opts} = adapter_meta,
+         %{serializer: serializer, decode_value_opts: dec_val_opts} = adapter_meta,
          key,
          pipeline
        ) do
     adapter_meta
     |> Command.pipeline!(pipeline, key)
     |> hd()
-    |> codec.decode_value(dec_val_opts)
+    |> serializer.decode_value(dec_val_opts)
   end
 
   defp cmd_opts(keys), do: Enum.reduce(keys, [], &cmd_opts/2)
@@ -797,10 +797,10 @@ defmodule NebulexRedisAdapter do
           "expected ttl: to be an integer >= 1000 or :infinity, got: #{inspect(ttl)}"
   end
 
-  defp execute_query(nil, %{codec: codec} = adapter_meta) do
+  defp execute_query(nil, %{serializer: serializer} = adapter_meta) do
     "*"
     |> execute_query(adapter_meta)
-    |> Enum.map(&codec.decode_key/1)
+    |> Enum.map(&serializer.decode_key/1)
   end
 
   defp execute_query(pattern, %{mode: mode} = adapter_meta) when is_binary(pattern) do
@@ -831,19 +831,7 @@ defmodule NebulexRedisAdapter do
     RedisCluster.group_keys_by_hash_slot(enum, keyslot)
   end
 
-  defp enc_key(%{codec: codec, encode_key_opts: enc_key_opts}, key) do
-    codec.encode_key(key, enc_key_opts)
+  defp enc_key(%{serializer: serializer, encode_key_opts: enc_key_opts}, key) do
+    serializer.encode_key(key, enc_key_opts)
   end
-
-  # defp enc_val(%{codec: codec, encode_value_opts: enc_val_opts}, val) do
-  #   codec.encode_value(val, enc_val_opts)
-  # end
-
-  # defp dec_key(%{codec: codec, decode_key_opts: dec_key_opts}, key) do
-  #   codec.decode_key(key, dec_key_opts)
-  # end
-
-  # defp dec_val(%{codec: codec, decode_value_opts: dec_val_opts}, key) do
-  #   codec.decode_key(key, dec_val_opts)
-  # end
 end

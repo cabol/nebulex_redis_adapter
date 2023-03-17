@@ -3,7 +3,7 @@ if Code.ensure_loaded?(CRC) do
     @moduledoc false
     use Nebulex.Adapter.Keyslot
 
-    alias NebulexRedisAdapter.Codec.StringCodec
+    alias NebulexRedisAdapter.Serializer.Serializable
 
     @impl true
     def hash_slot("{" <> hash_tags = key, range) do
@@ -19,7 +19,7 @@ if Code.ensure_loaded?(CRC) do
 
     def hash_slot(key, range) do
       key
-      |> StringCodec.encode()
+      |> Serializable.encode()
       |> do_hash_slot(range)
     end
 

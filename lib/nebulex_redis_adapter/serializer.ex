@@ -1,6 +1,6 @@
-defmodule NebulexRedisAdapter.Codec do
+defmodule NebulexRedisAdapter.Serializer do
   @moduledoc """
-  A **Codec** encodes keys and values sent to Redis,
+  A **Serializer** encodes keys and values sent to Redis,
   and decodes keys and values in the command output.
 
   See [Redis Strings](https://redis.io/docs/data-types/strings/).
@@ -29,21 +29,21 @@ defmodule NebulexRedisAdapter.Codec do
   @doc false
   defmacro __using__(_opts) do
     quote do
-      @behaviour NebulexRedisAdapter.Codec
+      @behaviour NebulexRedisAdapter.Serializer
 
-      alias NebulexRedisAdapter.Codec.StringCodec
-
-      @impl true
-      defdelegate encode_key(key, opts \\ []), to: StringCodec, as: :encode
+      alias NebulexRedisAdapter.Serializer.Serializable
 
       @impl true
-      defdelegate encode_value(value, opts \\ []), to: StringCodec, as: :encode
+      defdelegate encode_key(key, opts \\ []), to: Serializable, as: :encode
 
       @impl true
-      defdelegate decode_key(key, opts \\ []), to: StringCodec, as: :decode
+      defdelegate encode_value(value, opts \\ []), to: Serializable, as: :encode
 
       @impl true
-      defdelegate decode_value(value, opts \\ []), to: StringCodec, as: :decode
+      defdelegate decode_key(key, opts \\ []), to: Serializable, as: :decode
+
+      @impl true
+      defdelegate decode_value(value, opts \\ []), to: Serializable, as: :decode
 
       # Overridable callbacks
       defoverridable encode_key: 2, encode_value: 2, decode_key: 2, decode_value: 2
