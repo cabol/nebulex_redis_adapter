@@ -1,5 +1,7 @@
 {
   "skip_files": [
+    "lib/nebulex_redis_adapter/exceptions.ex",
+    "lib/nebulex_redis_adapter/helpers.ex",
     "test/*"
   ],
 

@@ -2,6 +2,8 @@ defmodule NebulexRedisAdapter.ClientCluster do
   # Client-side Cluster
   @moduledoc false
 
+  import NebulexRedisAdapter.Helpers
+
   alias NebulexRedisAdapter.ClientCluster.Keyslot, as: ClientClusterKeyslot
   alias NebulexRedisAdapter.ClientCluster.Supervisor, as: ClientClusterSupervisor
   alias NebulexRedisAdapter.Pool
@@ -47,19 +49,21 @@ defmodule NebulexRedisAdapter.ClientCluster do
   @spec exec!(
           Nebulex.Adapter.adapter_meta(),
           Redix.command(),
+          Keyword.t(),
           init_acc :: any,
           reducer :: (any, any -> any)
         ) :: any | no_return
   def exec!(
         %{name: name, registry: registry, nodes: nodes},
         command,
+        opts,
         init_acc \\ nil,
         reducer \\ fn res, _ -> res end
       ) do
     Enum.reduce(nodes, init_acc, fn {node_name, pool_size}, acc ->
       registry
       |> Pool.get_conn({name, node_name}, pool_size)
-      |> Redix.command!(command)
+      |> Redix.command!(command, redis_command_opts(opts))
       |> reducer.(acc)
     end)
   end

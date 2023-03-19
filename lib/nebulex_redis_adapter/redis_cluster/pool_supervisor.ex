@@ -1,4 +1,4 @@
-defmodule NebulexRedisAdapter.RedisCluster.Supervisor do
+defmodule NebulexRedisAdapter.RedisCluster.PoolSupervisor do
   @moduledoc """
   Redis Cluster Node/Slot Supervisor.
   """

@@ -56,7 +56,7 @@ defmodule NebulexRedisAdapter.MixProject do
       {:telemetry, "~> 0.4 or ~> 1.0", optional: true},
 
       # Test & Code Analysis
-      {:excoveralls, "~> 0.15", only: :test},
+      {:excoveralls, "~> 0.16", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.2", only: [:dev, :test], runtime: false},
       {:mimic, "~> 1.7", only: :test},

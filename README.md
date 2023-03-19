@@ -123,7 +123,13 @@ config :my_app, MyApp.RedisClusterCache,
   ]
 ```
 
-The pool of connections against the different master nodes is automatically
+**IMPORTANT:** The option `:master_nodes` has been removed in favor of the
+  new cluster management strategy. Instead of `:master_nodes`, you just need
+  to configure the `:conn_opts` pointing to your configuration endpoint
+  (which could be one of the master nodes). See
+  [Redis Cluster options](https://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html#module-redis-cluster-options)
+
+The pool of connections to the different master nodes is automatically
 configured by the adapter once it gets the cluster slots info.
 
 > This one could be the easiest and recommended way for distributed caching
