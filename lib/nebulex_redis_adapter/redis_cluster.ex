@@ -2,11 +2,13 @@ defmodule NebulexRedisAdapter.RedisCluster do
   # Redis Cluster Manager
   @moduledoc false
 
-  alias NebulexRedisAdapter.{Connection, Pool}
+  import NebulexRedisAdapter.Helpers
+
+  alias NebulexRedisAdapter.Pool
   alias NebulexRedisAdapter.RedisCluster.Keyslot, as: RedisClusterKeyslot
 
   @typedoc "Proxy type to the adapter meta"
-  @type adapter_meta :: Nebulex.Adapter.metadata()
+  @type adapter_meta :: Nebulex.Adapter.adapter_meta()
 
   # Redis cluster hash slots size
   @redis_cluster_hash_slots 16_384
@@ -14,87 +16,86 @@ defmodule NebulexRedisAdapter.RedisCluster do
   ## API
 
   @spec init(adapter_meta, Keyword.t()) :: {Supervisor.child_spec(), adapter_meta}
-  def init(%{name: name, registry: registry, pool_size: pool_size} = adapter_meta, opts) do
-    # Get the hash slots topology
-    cluster_shards = get_cluster_shards(opts)
-
-    # Init ETS table to store hash slots
-    cluster_shards_tab = init_cluster_shards_table(name)
-
-    # Build specs for the cluster
-    cluster_slot_specs =
-      for {start, stop, master_host, master_port} <- cluster_shards do
-        # Define slot id
-        slot_id = {:cluster_shards, start, stop}
-
-        # Store mapping between cluster slot and supervisor name
-        true = :ets.insert(cluster_shards_tab, slot_id)
-
-        # Define options
-        opts =
-          Keyword.merge(opts,
-            slot_id: slot_id,
-            registry: registry,
-            pool_size: pool_size,
-            master_host: master_host,
-            master_port: master_port
-          )
-
-        # Define child spec
-        Supervisor.child_spec(
-          {NebulexRedisAdapter.RedisCluster.Supervisor, opts},
-          type: :supervisor,
-          id: slot_id
-        )
-      end
-
-    cluster_shards_supervisor_spec = %{
-      id: :cluster_shards_supervisor,
-      type: :supervisor,
-      start: {Supervisor, :start_link, [cluster_slot_specs, [strategy: :one_for_one]]}
-    }
+  def init(%{name: name} = adapter_meta, opts) do
+    # Init ETS table to store the hash slot map
+    cluster_shards_tab = init_hash_slot_map_table(name)
 
     adapter_meta =
       adapter_meta
       |> Map.put(:cluster_shards_tab, cluster_shards_tab)
       |> Map.update(:keyslot, RedisClusterKeyslot, &(&1 || RedisClusterKeyslot))
 
+    children = [
+      {NebulexRedisAdapter.RedisCluster.DynamicSupervisor, {adapter_meta, opts}},
+      {NebulexRedisAdapter.RedisCluster.ConfigManager, {adapter_meta, opts}}
+    ]
+
+    cluster_shards_supervisor_spec = %{
+      id: {name, RedisClusterSupervisor},
+      type: :supervisor,
+      start: {Supervisor, :start_link, [children, [strategy: :rest_for_one]]}
+    }
+
     {cluster_shards_supervisor_spec, adapter_meta}
   end
 
-  @spec exec!(adapter_meta, Redix.command(), init_acc :: any, (any, any -> any)) :: any
+  @spec exec!(adapter_meta, Redix.command(), Keyword.t(), init_acc :: any, (any, any -> any)) ::
+          any
   def exec!(
-        %{registry: registry, pool_size: pool_size} = adapter_meta,
+        %{
+          name: name,
+          cluster_shards_tab: cluster_shards_tab,
+          registry: registry,
+          pool_size: pool_size
+        },
         command,
+        opts,
         init_acc \\ nil,
         reducer \\ fn res, _ -> res end
       ) do
-    adapter_meta.cluster_shards_tab
-    |> :ets.lookup(:cluster_shards)
-    |> Enum.reduce(init_acc, fn slot_id, acc ->
-      registry
-      |> Pool.get_conn(slot_id, pool_size)
-      |> Redix.command!(command)
-      |> reducer.(acc)
+    with_retry(name, Keyword.get(opts, :lock_retries, :infinity), fn ->
+      cluster_shards_tab
+      |> :ets.lookup(:cluster_shards)
+      |> Enum.reduce(init_acc, fn slot_id, acc ->
+        registry
+        |> Pool.get_conn(slot_id, pool_size)
+        |> Redix.command!(command, redis_command_opts(opts))
+        |> reducer.(acc)
+      end)
     end)
   end
 
-  @spec get_conn(adapter_meta, {:"$hash_slot", any} | any) :: pid | nil
-  def get_conn(%{registry: registry, pool_size: pool_size} = adapter_meta, key) do
-    {:"$hash_slot", hash_slot} =
-      case key do
-        {:"$hash_slot", _} -> key
-        _ -> hash_slot(key, adapter_meta.keyslot)
-      end
+  @spec get_conn(adapter_meta, {:"$hash_slot", any} | any, Keyword.t()) :: pid | nil
+  def get_conn(
+        %{
+          name: name,
+          keyslot: keyslot,
+          cluster_shards_tab: cluster_shards_tab,
+          registry: registry,
+          pool_size: pool_size
+        },
+        key,
+        opts
+      ) do
+    with_retry(name, Keyword.get(opts, :lock_retries, :infinity), fn ->
+      {:"$hash_slot", hash_slot} =
+        case key do
+          {:"$hash_slot", _} ->
+            key
 
-    adapter_meta.cluster_shards_tab
-    |> :ets.lookup(:cluster_shards)
-    |> Enum.reduce_while(nil, fn
-      {_, start, stop} = slot_id, _acc when hash_slot >= start and hash_slot <= stop ->
-        {:halt, Pool.get_conn(registry, slot_id, pool_size)}
+          _ ->
+            hash_slot(key, keyslot)
+        end
 
-      _, acc ->
-        {:cont, acc}
+      cluster_shards_tab
+      |> :ets.lookup(:cluster_shards)
+      |> Enum.reduce_while(nil, fn
+        {_, start, stop} = slot_id, _acc when hash_slot >= start and hash_slot <= stop ->
+          {:halt, Pool.get_conn(registry, slot_id, pool_size)}
+
+        _, acc ->
+          {:cont, acc}
+      end)
     end)
   end
 
@@ -103,10 +104,12 @@ defmodule NebulexRedisAdapter.RedisCluster do
     Enum.reduce(enum, %{}, fn
       {key, _} = entry, acc ->
         slot = hash_slot(key, keyslot)
+
         Map.put(acc, slot, [entry | Map.get(acc, slot, [])])
 
       key, acc ->
         slot = hash_slot(key, keyslot)
+
         Map.put(acc, slot, [key | Map.get(acc, slot, [])])
     end)
   end
@@ -116,128 +119,69 @@ defmodule NebulexRedisAdapter.RedisCluster do
     {:"$hash_slot", keyslot.hash_slot(key, @redis_cluster_hash_slots)}
   end
 
+  @spec get_status(atom, atom) :: atom
+  def get_status(name, default \\ :locked) when is_atom(name) and is_atom(default) do
+    name
+    |> status_key()
+    |> :persistent_term.get(default)
+  end
+
+  @spec put_status(atom, atom) :: :ok
+  def put_status(name, status) when is_atom(name) and is_atom(status) do
+    # An atom is a single word so this does not trigger a global GC
+    name
+    |> status_key()
+    |> :persistent_term.put(status)
+  end
+
+  @spec del_status_key(atom) :: boolean
+  def del_status_key(name) when is_atom(name) do
+    # An atom is a single word so this does not trigger a global GC
+    name
+    |> status_key()
+    |> :persistent_term.erase()
+  end
+
+  @spec with_retry(atom, pos_integer, (() -> term)) :: term
+  def with_retry(name, retries, fun) do
+    with_retry(name, fun, retries, 1)
+  end
+
+  # coveralls-ignore-start
+
+  defp with_retry(_name, fun, max_retries, retries) when retries >= max_retries do
+    fun.()
+  end
+
+  # coveralls-ignore-stop
+
+  defp with_retry(name, fun, max_retries, retries) do
+    case get_status(name) do
+      :ok ->
+        fun.()
+
+      :locked ->
+        :ok = random_sleep(retries)
+
+        with_retry(name, fun, max_retries, retries + 1)
+
+      :error ->
+        raise NebulexRedisAdapter.Error, reason: :redis_cluster_status_error, cache: name
+    end
+  end
+
   ## Private Functions
 
-  defp init_cluster_shards_table(name) do
+  # Inline common instructions
+  @compile {:inline, status_key: 1}
+
+  defp status_key(name), do: {name, :redis_cluster_status}
+
+  defp init_hash_slot_map_table(name) do
     :ets.new(name, [
       :public,
       :duplicate_bag,
       read_concurrency: true
     ])
   end
-
-  defp get_cluster_shards(opts) do
-    with {:ok, conn, config_endpoint} <- opts |> Connection.conn_opts() |> connect(),
-         {:ok, cluster_info} <- cluster_info(conn),
-         command = cluster_command(cluster_info["redis_version"]),
-         {:ok, cluster_info} <- Redix.command(conn, command) do
-      parse_cluster_info(cluster_info, config_endpoint, opts)
-    else
-      {:error, reason} -> exit(reason)
-    end
-  end
-
-  defp connect(conn_opts) do
-    case Keyword.pop(conn_opts, :url) do
-      {nil, conn_opts} ->
-        with {:ok, conn} <- Redix.start_link(conn_opts) do
-          {:ok, conn, conn_opts[:host]}
-        end
-
-      {url, conn_opts} ->
-        with {:ok, conn} <- Redix.start_link(url, conn_opts) do
-          {:ok, conn, URI.parse(url).host}
-        end
-    end
-  end
-
-  defp cluster_info(conn) do
-    with {:ok, raw_info} <- Redix.command(conn, ["INFO", "server"]) do
-      cluster_info =
-        raw_info
-        |> String.split(["\r\n", "\n"], trim: true)
-        |> Enum.reduce(%{}, fn str, acc ->
-          case String.split(str, ":", trim: true) do
-            [key, value] -> Map.put(acc, key, value)
-            _other -> acc
-          end
-        end)
-
-      {:ok, cluster_info}
-    end
-  end
-
-  defp cluster_command(<<major::bytes-size(1), _rest::bytes>>) do
-    case Integer.parse(major) do
-      {v, _} when v >= 7 ->
-        ["CLUSTER", "SHARDS"]
-
-      _else ->
-        ["CLUSTER", "SLOTS"]
-    end
-  end
-
-  # coveralls-ignore-start
-
-  defp cluster_command(_) do
-    ["CLUSTER", "SLOTS"]
-  end
-
-  # coveralls-ignore-stop
-
-  defp parse_cluster_info(config, config_endpoint, opts) do
-    # Whether the given master host should be overridden with the
-    # configuration endpoint or not
-    override? = Keyword.get(opts, :override_master_host, false)
-
-    Enum.reduce(config, [], fn
-      # Redis version >= 7 (["CLUSTER", "SHARDS"])
-      ["slots", [start, stop], "nodes", nodes], acc ->
-        {host, port} =
-          for [
-                "id",
-                _,
-                "port",
-                port,
-                "ip",
-                ip,
-                "endpoint",
-                endpoint,
-                "role",
-                "master",
-                "replication-offset",
-                _,
-                "health",
-                "online"
-              ] <- nodes do
-            {endpoint || ip, port}
-          end
-          |> hd()
-
-        [{start, stop, host, port} | acc]
-
-      # Redis version < 7 (["CLUSTER", "SLOTS"])
-      [start, stop, [host, port | _tail] = _master | _replicas], acc ->
-        [{start, stop, host, port} | acc]
-    end)
-    |> Enum.map(fn {start, stop, host, port} ->
-      {start, stop, maybe_override_host(host, config_endpoint, override?), port}
-    end)
-  end
-
-  defp maybe_override_host(_host, config_endpoint, true) do
-    config_endpoint
-  end
-
-  # coveralls-ignore-start
-
-  defp maybe_override_host(nil, config_endpoint, _override?) do
-    config_endpoint
-  end
-
-  defp maybe_override_host(host, _config_endpoint, _override?) do
-    host
-  end
-
-  # coveralls-ignore-stop
 end

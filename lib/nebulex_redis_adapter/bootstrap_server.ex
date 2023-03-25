@@ -10,6 +10,7 @@ defmodule NebulexRedisAdapter.BootstrapServer do
 
   alias Nebulex.Telemetry
   alias Nebulex.Telemetry.StatsHandler
+  alias NebulexRedisAdapter.RedisCluster
 
   ## API
 
@@ -38,7 +39,11 @@ defmodule NebulexRedisAdapter.BootstrapServer do
 
   @impl true
   def terminate(_reason, adapter_meta) do
-    if ref = adapter_meta.stats_counter, do: Telemetry.detach(ref)
+    _ = if ref = adapter_meta.stats_counter, do: Telemetry.detach(ref)
+
+    if adapter_meta.mode == :redis_cluster do
+      RedisCluster.del_status_key(adapter_meta.name)
+    end
   end
 
   ## Private Functions

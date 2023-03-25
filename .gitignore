@@ -16,5 +16,6 @@ erl_crash.dump
 ._*
 .elixir*
 .vs*
+*.coverdata
 /priv
 /nebulex

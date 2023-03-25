@@ -28,7 +28,9 @@ end
 # Mocks
 [
   Redix,
-  NebulexRedisAdapter.Pool
+  NebulexRedisAdapter.Pool,
+  NebulexRedisAdapter.RedisCluster,
+  NebulexRedisAdapter.RedisCluster.Keyslot
 ]
 |> Enum.each(&Mimic.copy/1)
 

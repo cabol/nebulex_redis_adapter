@@ -10,12 +10,13 @@ defmodule NebulexRedisAdapter.CommandTest do
       |> expect(:get_conn, fn _, _, _ -> self() end)
 
       Redix
-      |> expect(:pipeline, fn _, _ -> {:ok, [%Redix.Error{}]} end)
+      |> expect(:pipeline, fn _, _, _ -> {:ok, [%Redix.Error{}]} end)
 
       assert_raise Redix.Error, fn ->
-        Command.pipeline!(%{mode: :standalone, name: :test, registry: :test, pool_size: 1}, [
-          "PING"
-        ])
+        Command.pipeline!(
+          %{mode: :standalone, name: :test, registry: :test, pool_size: 1},
+          [["PING"]]
+        )
       end
     end
   end
