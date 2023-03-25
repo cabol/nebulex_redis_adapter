@@ -3,7 +3,7 @@ defmodule NebulexRedisAdapter.Cache.CommandTest do
 
   deftests "Redis" do
     test "command/3 executes a command", %{cache: cache} do
-      assert cache.command(["SET", "foo", "bar"]) == {:ok, "OK"}
+      assert cache.command(["SET", "foo", "bar"], timeout: 5000) == {:ok, "OK"}
       assert cache.command(["GET", "foo"]) == {:ok, "bar"}
     end
 
@@ -18,17 +18,21 @@ defmodule NebulexRedisAdapter.Cache.CommandTest do
     end
 
     test "command!/3 with LIST", %{cache: cache} do
-      assert cache.command!("mylist", ["LPUSH", "mylist", "world"]) == 1
-      assert cache.command!("mylist", ["LPUSH", "mylist", "hello"]) == 2
-      assert cache.command!("mylist", ["LRANGE", "mylist", "0", "-1"]) == ["hello", "world"]
+      assert cache.command!(["LPUSH", "mylist", "world"], key: "mylist") == 1
+      assert cache.command!(["LPUSH", "mylist", "hello"], key: "mylist") == 2
+      assert cache.command!(["LRANGE", "mylist", "0", "-1"], key: "mylist") == ["hello", "world"]
     end
 
     test "pipeline/3 runs the piped commands", %{cache: cache} do
-      assert cache.pipeline("mylist", [
-               ["LPUSH", "mylist", "world"],
-               ["LPUSH", "mylist", "hello"],
-               ["LRANGE", "mylist", "0", "-1"]
-             ]) == {:ok, [1, 2, ["hello", "world"]]}
+      assert cache.pipeline(
+               [
+                 ["LPUSH", "mylist", "world"],
+                 ["LPUSH", "mylist", "hello"],
+                 ["LRANGE", "mylist", "0", "-1"]
+               ],
+               key: "mylist",
+               timeout: 5000
+             ) == {:ok, [1, 2, ["hello", "world"]]}
     end
 
     test "pipeline/3 returns an error", %{cache: cache} do
@@ -36,11 +40,14 @@ defmodule NebulexRedisAdapter.Cache.CommandTest do
     end
 
     test "pipeline!/3 runs the piped commands", %{cache: cache} do
-      assert cache.pipeline!("mylist", [
-               ["LPUSH", "mylist", "world"],
-               ["LPUSH", "mylist", "hello"],
-               ["LRANGE", "mylist", "0", "-1"]
-             ]) == [1, 2, ["hello", "world"]]
+      assert cache.pipeline!(
+               [
+                 ["LPUSH", "mylist", "world"],
+                 ["LPUSH", "mylist", "hello"],
+                 ["LRANGE", "mylist", "0", "-1"]
+               ],
+               key: "mylist"
+             ) == [1, 2, ["hello", "world"]]
     end
 
     test "pipeline!/3 returns an error", %{cache: cache} do

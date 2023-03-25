@@ -281,32 +281,37 @@ defmodule NebulexRedisAdapter do
   Therefore, the adapter injects two additional/extended functions to the
   defined cache: `command!/3` and `pipeline!/3`.
 
-  ### `command!(key \\ nil, name \\ __MODULE__, command)`
+  ### `command!(command, opts \\ [])`
 
-      iex> MyCache.command!("mylist", ["LPUSH", "mylist", "world"])
+      iex> MyCache.command!(["LPUSH", "mylist", "world"], key: "mylist")
       1
-      iex> MyCache.command!("mylist", ["LPUSH", "mylist", "hello"])
+      iex> MyCache.command!(["LPUSH", "mylist", "hello"], key: "mylist")
       2
-      iex> MyCache.command!("mylist", ["LRANGE", "mylist", "0", "-1"])
+      iex> MyCache.command!(["LRANGE", "mylist", "0", "-1"], key: "mylist")
       ["hello", "world"]
 
-  ### `pipeline!(key \\ nil, name \\ __MODULE__, commands)`
+  ### `pipeline!(commands, opts \\ [])`
 
-      iex> cache.pipeline!("mylist", [
+      iex> [
       ...>   ["LPUSH", "mylist", "world"],
       ...>   ["LPUSH", "mylist", "hello"],
       ...>   ["LRANGE", "mylist", "0", "-1"]
-      ...> ])
+      ...> ]
+      ...> |> cache.pipeline!(key: "mylist")
       [1, 2, ["hello", "world"]]
 
-  Arguments for `command!/3` and `pipeline!/3`:
+  ### Options for `command!/2` and `pipeline!/2`:
 
-    * `key` - it is required when used the adapter in mode `:redis_cluster`
+    * `:key` - It is required when used the adapter in mode `:redis_cluster`
       or `:client_side_cluster` so that the node where the commands will
-      take place can be selected properly. For `:standalone` it is optional.
-    * `name` - The name of the cache in case you are using dynamic caches,
+      take place can be selected properly. For `:standalone` mode is not
+      required (optional).
+    * `:name` - The name of the cache in case you are using dynamic caches,
       otherwise it is not required.
-    * `commands` - Redis commands.
+
+  Since these functions run on top of `Redix`, they also accept their options
+  (e.g.: `:timeout`, and `:telemetry_metadata`). See `Redix` docs for more
+  information.
 
   ## Transactions
 
@@ -354,9 +359,11 @@ defmodule NebulexRedisAdapter do
       @doc """
       A convenience function for executing a Redis command.
       """
-      def command(key \\ nil, name \\ __MODULE__, command) do
+      def command(command, opts \\ []) do
+        {name, key, opts} = pop_cache_name_and_key(opts)
+
         Adapter.with_meta(name, fn _, meta ->
-          Command.exec(meta, command, key)
+          Command.exec(meta, command, key, opts)
         end)
       end
 
@@ -364,18 +371,22 @@ defmodule NebulexRedisAdapter do
       A convenience function for executing a Redis command,
       but raises an exception if an error occurs.
       """
-      def command!(key \\ nil, name \\ __MODULE__, command) do
+      def command!(command, opts \\ []) do
+        {name, key, opts} = pop_cache_name_and_key(opts)
+
         Adapter.with_meta(name, fn _, meta ->
-          Command.exec!(meta, command, key)
+          Command.exec!(meta, command, key, opts)
         end)
       end
 
       @doc """
       A convenience function for executing a Redis pipeline.
       """
-      def pipeline(key \\ nil, name \\ __MODULE__, commands) do
+      def pipeline(commands, opts \\ []) do
+        {name, key, opts} = pop_cache_name_and_key(opts)
+
         Adapter.with_meta(name, fn _, meta ->
-          Command.pipeline(meta, commands, key)
+          Command.pipeline(meta, commands, key, opts)
         end)
       end
 
@@ -383,10 +394,19 @@ defmodule NebulexRedisAdapter do
       A convenience function for executing a Redis pipeline,
       but raises an exception if an error occurs.
       """
-      def pipeline!(key \\ nil, name \\ __MODULE__, commands) do
+      def pipeline!(commands, opts \\ []) do
+        {name, key, opts} = pop_cache_name_and_key(opts)
+
         Adapter.with_meta(name, fn _, meta ->
-          Command.pipeline!(meta, commands, key)
+          Command.pipeline!(meta, commands, key, opts)
         end)
+      end
+
+      defp pop_cache_name_and_key(opts) do
+        {name, opts} = Keyword.pop(opts, :name, __MODULE__)
+        {key, opts} = Keyword.pop(opts, :key)
+
+        {name, key, opts}
       end
     end
   end

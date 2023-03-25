@@ -244,12 +244,15 @@ end
 
 ### Using a Redis Proxy
 
-The other option is to use a proxy, like [twemproxy](https://github.com/twitter/twemproxy)
-on top of Redis. In this case, the proxy does the distribution work, and from
-the adparter's side (**NebulexRedisAdapter**), it would be only configuration.
-Instead of connect the adapter against the Redis nodes, we connect it against
-the proxy nodes, this means, in the config, we just setup the pools with the
-host and port for each proxy.
+The other option is to use a proxy, like [Envoy proxy][envoy] or
+[Twemproxy][twemproxy] on top of Redis. In this case, the proxy does the
+distribution work, and from the adparter's side (**NebulexRedisAdapter**),
+it would be only configuration. Instead of connect the adapter against the
+Redis nodes, we connect it against the proxy nodes, this means, in the config,
+we setup the pool with the host and port pointing to the proxy.
+
+[envoy]: https://www.envoyproxy.io/
+[twemproxy]: https://github.com/twitter/twemproxy
 
 ## Using the cache for executing a Redis command or pipeline
 
@@ -262,25 +265,26 @@ Therefore, the adapter injects two additional/extended functions to the
 defined cache: `command!/3` and `pipeline!/3`.
 
 ```elixir
-iex> MyCache.command!("mylist", ["LPUSH", "mylist", "world"])
+iex> MyCache.command!(["LPUSH", "mylist", "world"], key: "mylist")
 1
-iex> MyCache.command!("mylist", ["LPUSH", "mylist", "hello"])
+iex> MyCache.command!(["LPUSH", "mylist", "hello"], key: "mylist")
 2
-iex> MyCache.command!("mylist", ["LRANGE", "mylist", "0", "-1"])
+iex> MyCache.command!(["LRANGE", "mylist", "0", "-1"], key: "mylist")
 ["hello", "world"]
 
-iex> cache.pipeline!("mylist", [
+iex> [
 ...>   ["LPUSH", "mylist", "world"],
 ...>   ["LPUSH", "mylist", "hello"],
 ...>   ["LRANGE", "mylist", "0", "-1"]
-...> ])
+...> ]
+...> |> cache.pipeline!(key: "mylist")
 [1, 2, ["hello", "world"]]
 ```
 
-**NOTE:** The `key` is required when used the adapter in mode `:client_side_cluster` or
-`:redis_cluster`, for `:standalone` no needed (optional). And the `name` is
-in case you are using a dynamic cache and you have to pass the cache name
-explicitly.
+**NOTE:** The `key` is required when used the adapter in mode
+`:client_side_cluster` or `:redis_cluster`. For `:standalone` is not required
+(optional). And the `name` is in case you are using a dynamic cache and
+you have to pass the cache name explicitly.
 
 ## Testing
 
