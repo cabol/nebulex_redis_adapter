@@ -108,7 +108,9 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
         {:noreply, %{state | running_shards: running_shards, setup_retries: 1}}
 
       {:error, reason} ->
+        # Log the error
         Logger.error(inspect(reason))
+        # Set cluster status to error
         :ok = RedisCluster.put_status(name, :error)
 
         {:noreply, %{state | running_shards: [], setup_retries: n + 1}, random_timeout(n)}
