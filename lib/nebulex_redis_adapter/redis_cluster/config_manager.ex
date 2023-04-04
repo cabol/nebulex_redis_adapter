@@ -5,6 +5,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
   import Nebulex.Helpers, only: [normalize_module_name: 1]
   import NebulexRedisAdapter.Helpers
+  require Logger
 
   alias Nebulex.Telemetry
   alias NebulexRedisAdapter.{Connection, RedisCluster}
@@ -106,8 +107,8 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
         {:noreply, %{state | running_shards: running_shards, setup_retries: 1}}
 
-      {:error, _reason} ->
-        # Set cluster status to error
+      {:error, reason} ->
+        Logger.error(inspect(reason))
         :ok = RedisCluster.put_status(name, :error)
 
         {:noreply, %{state | running_shards: [], setup_retries: n + 1}, random_timeout(n)}
