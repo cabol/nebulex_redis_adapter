@@ -59,6 +59,63 @@ defmodule NebulexRedisAdapter do
   See the "Telemetry events" section in `Nebulex.Cache`
   for more information.
 
+  ### Adapter-specific telemetry events for the `:redis_cluster` mode
+
+  Aside from the recommended Telemetry events by `Nebulex.Cache`, this adapter
+  exposes the following Telemetry events for the `:redis_cluster` mode:
+
+    * `telemetry_prefix ++ [:config_manager, :setup, :start]` - This event is
+      specific to the `:redis_cluster` mode. Before the configuration manager
+      calls Redis to set up the cluster shards, this event should be invoked.
+
+      The `:measurements` map will include the following:
+
+      * `:system_time` - The current system time in native units from calling:
+        `System.system_time()`.
+
+      A Telemetry `:metadata` map including the following fields:
+
+      * `:adapter_meta` - The adapter metadata.
+      * `:pid` - The configuration manager PID.
+
+    * `telemetry_prefix ++ [:config_manager, :setup, :stop]` - This event is
+      specific to the `:redis_cluster` mode. After the configuration manager
+      set up the cluster shards, this event should be invoked.
+
+      The `:measurements` map will include the following:
+
+      * `:duration` - The time spent configuring the cluster. The measurement
+        is given in the `:native` time unit. You can read more about it in the
+        docs for `System.convert_time_unit/3`.
+
+      A Telemetry `:metadata` map including the following fields:
+
+      * `:adapter_meta` - The adapter metadata.
+      * `:pid` - The configuration manager PID.
+      * `:status` - The cluster setup status. If the cluster was configured
+        successfully, the status will be set to `:ok`, otherwise, will be
+        set to `:error`.
+      * `:error` - The status reason. When the status is `:ok`, the reason is
+        `:succeeded`, otherwise, it is the error reason.
+
+    * `telemetry_prefix ++ [:config_manager, :setup, :exception]` - This event
+      is specific to the `:redis_cluster` mode. When an exception is raised
+      while configuring the cluster, this event should be invoked.
+
+      The `:measurements` map will include the following:
+
+      * `:duration` - The time spent configuring the cluster. The measurement
+        is given in the `:native` time unit. You can read more about it in the
+        docs for `System.convert_time_unit/3`.
+
+      A Telemetry `:metadata` map including the following fields:
+
+      * `:adapter_meta` - The adapter metadata.
+      * `:pid` - The configuration manager PID.
+      * `:kind` - The type of the error: `:error`, `:exit`, or `:throw`.
+      * `:reason` - The reason of the error.
+      * `:stacktrace` - The stacktrace.
+
   ## TTL or Expiration Time
 
   As is explained in `Nebulex.Cache`, most of the write-like functions support

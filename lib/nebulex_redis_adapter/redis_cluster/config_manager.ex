@@ -5,11 +5,12 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
   import Nebulex.Helpers, only: [normalize_module_name: 1]
   import NebulexRedisAdapter.Helpers
-  require Logger
 
   alias Nebulex.Telemetry
   alias NebulexRedisAdapter.{Connection, RedisCluster}
   alias NebulexRedisAdapter.RedisCluster.PoolSupervisor
+
+  require Logger
 
   ## Internals
 
@@ -109,7 +110,8 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
       {:error, reason} ->
         # Log the error
-        Logger.error(inspect(reason))
+        :ok = Logger.error(fn -> "Error configuring cluster shards: #{inspect(reason)}" end)
+
         # Set cluster status to error
         :ok = RedisCluster.put_status(name, :error)
 
