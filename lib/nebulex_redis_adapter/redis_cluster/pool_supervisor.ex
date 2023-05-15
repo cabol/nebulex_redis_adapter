@@ -26,7 +26,7 @@ defmodule NebulexRedisAdapter.RedisCluster.PoolSupervisor do
 
     conn_opts =
       opts
-      |> Keyword.get(:conn_opts, [])
+      |> Keyword.fetch!(:conn_opts)
       |> Keyword.delete(:url)
       |> Keyword.put(:host, master_host)
       |> Keyword.put(:port, master_port)

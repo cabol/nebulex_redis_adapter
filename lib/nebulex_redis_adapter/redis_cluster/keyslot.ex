@@ -1,11 +1,16 @@
-if Code.ensure_loaded?(CRC) do
-  defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
-    @moduledoc false
-    use Nebulex.Adapter.Keyslot
+defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
+  @moduledoc """
+  Default `Nebulex.Adapter.Keyslot` implementation.
+  """
 
+  use Nebulex.Adapter.Keyslot
+
+  if Code.ensure_loaded?(CRC) do
     alias NebulexRedisAdapter.Serializer.Serializable
 
     @impl true
+    def hash_slot(key, range)
+
     def hash_slot("{" <> hash_tags = key, range) do
       case String.split(hash_tags, "}") do
         [key, _] -> do_hash_slot(key, range)
@@ -28,10 +33,5 @@ if Code.ensure_loaded?(CRC) do
       |> CRC.crc(key)
       |> rem(range)
     end
-  end
-else
-  defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
-    @moduledoc false
-    use Nebulex.Adapter.Keyslot
   end
 end

@@ -4,7 +4,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
   import NebulexRedisAdapter.Helpers
 
-  alias NebulexRedisAdapter.Pool
+  alias NebulexRedisAdapter.{Options, Pool}
   alias NebulexRedisAdapter.RedisCluster.Keyslot, as: RedisClusterKeyslot
 
   @typedoc "Proxy type to the adapter meta"
@@ -17,13 +17,25 @@ defmodule NebulexRedisAdapter.RedisCluster do
 
   @spec init(adapter_meta, Keyword.t()) :: {Supervisor.child_spec(), adapter_meta}
   def init(%{name: name} = adapter_meta, opts) do
+    # Ensure :redis_cluster is provided
+    if is_nil(Keyword.get(opts, :redis_cluster)) do
+      raise ArgumentError,
+            Options.invalid_cluster_config_error(
+              "invalid value for :redis_cluster option: ",
+              nil,
+              :redis_cluster
+            )
+    end
+
     # Init ETS table to store the hash slot map
     cluster_shards_tab = init_hash_slot_map_table(name)
 
+    # Update adapter meta
     adapter_meta =
-      adapter_meta
-      |> Map.put(:cluster_shards_tab, cluster_shards_tab)
-      |> Map.update(:keyslot, RedisClusterKeyslot, &(&1 || RedisClusterKeyslot))
+      Map.merge(adapter_meta, %{
+        cluster_shards_tab: cluster_shards_tab,
+        keyslot: get_keyslot(opts)
+      })
 
     children = [
       {NebulexRedisAdapter.RedisCluster.DynamicSupervisor, {adapter_meta, opts}},
@@ -183,5 +195,11 @@ defmodule NebulexRedisAdapter.RedisCluster do
       :duplicate_bag,
       read_concurrency: true
     ])
+  end
+
+  defp get_keyslot(opts) do
+    opts
+    |> Keyword.fetch!(:redis_cluster)
+    |> Keyword.fetch!(:keyslot)
   end
 end

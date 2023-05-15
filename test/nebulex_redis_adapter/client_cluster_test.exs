@@ -16,4 +16,22 @@ defmodule NebulexRedisAdapter.ClientClusterTest do
 
     {:ok, cache: Cache, name: Cache}
   end
+
+  describe "cluster setup" do
+    test "error: missing :client_side_cluster option" do
+      defmodule ClientClusterWithInvalidOpts do
+        @moduledoc false
+        use Nebulex.Cache,
+          otp_app: :nebulex_redis_adapter,
+          adapter: NebulexRedisAdapter
+      end
+
+      _ = Process.flag(:trap_exit, true)
+
+      assert {:error, {%ArgumentError{message: msg}, _}} =
+               ClientClusterWithInvalidOpts.start_link(mode: :client_side_cluster)
+
+      assert Regex.match?(~r/invalid value for :client_side_cluster option: expected/, msg)
+    end
+  end
 end

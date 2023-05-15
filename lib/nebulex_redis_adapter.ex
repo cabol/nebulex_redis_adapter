@@ -1,5 +1,5 @@
 defmodule NebulexRedisAdapter do
-  @moduledoc ~S"""
+  @moduledoc """
   Nebulex adapter for Redis. This adapter is implemented using `Redix`,
   a Redis driver for Elixir.
 
@@ -19,23 +19,96 @@ defmodule NebulexRedisAdapter do
       provides a simple client-side cluster implementation based on
       Sharding distribution model via `:client_side_cluster` mode.
 
+  ## Standalone
+
+  We can define a cache to use Redis as follows:
+
+      defmodule MyApp.RedisCache do
+        use Nebulex.Cache,
+          otp_app: :nebulex,
+          adapter: NebulexRedisAdapter
+      end
+
+  The configuration for the cache must be in your application environment,
+  usually defined in your `config/config.exs`:
+
+      config :my_app, MyApp.RedisCache,
+        conn_opts: [
+          host: "127.0.0.1",
+          port: 6379
+        ]
+
+  ## Redis Cluster
+
+  We can define a cache to use Redis Cluster as follows:
+
+      defmodule MyApp.RedisClusterCache do
+        use Nebulex.Cache,
+          otp_app: :nebulex,
+          adapter: NebulexRedisAdapter
+      end
+
+  The config:
+
+      config :my_app, MyApp.RedisClusterCache,
+        mode: :redis_cluster,
+        redis_cluster: [
+          configuration_endpoints: [
+            endpoint1_conn_opts: [
+              host: "127.0.0.1",
+              port: 6379,
+              # Add the password if 'requirepass' is on
+              password: "password"
+            ],
+            ...
+          ]
+        ]
+
+  ## Client-side Cluster
+
+  We can define a cache with "client-side cluster mode" as follows:
+
+      defmodule MyApp.ClusteredCache do
+        use Nebulex.Cache,
+          otp_app: :nebulex,
+          adapter: NebulexRedisAdapter
+      end
+
+  The config:
+
+      config :my_app, MyApp.ClusteredCache,
+        mode: :client_side_cluster,
+        client_side_cluster: [
+          nodes: [
+            node1: [
+              pool_size: 10,
+              conn_opts: [
+                host: "127.0.0.1",
+                port: 9001
+              ]
+            ],
+            node2: [
+              pool_size: 4,
+              conn_opts: [
+                url: "redis://127.0.0.1:9002"
+              ]
+            ],
+            node3: [
+              conn_opts: [
+                host: "127.0.0.1",
+                port: 9003
+              ]
+            ],
+            ...
+          ]
+        ]
+
   ## Configuration options
 
   In addition to `Nebulex.Cache` config options, the adapter supports the
   following options:
 
-    * `:mode` - Defines the mode Redis will be set up. It can be one of the
-      next values: `:standalone`, `:client_side_cluster`, `:redis_cluster`.
-      Defaults to `:standalone`.
-
-    * `:pool_size` - Number of connections in the pool. Defaults to
-      `System.schedulers_online()`.
-
-    * `:conn_opts` - Redis client options (`Redix` options in this case).
-      For more information about connection options, see `Redix` docs.
-
-    * `:serializer` - Custom serializer module implementing the
-      `NebulexRedisAdapter.Serializer` behaviour.
+  #{NebulexRedisAdapter.Options.start_options_docs()}
 
   ## Shared runtime options
 
@@ -43,17 +116,170 @@ defmodule NebulexRedisAdapter do
   (e.g.: `:timeout`, and `:telemetry_metadata`). See `Redix` docs for more
   information.
 
-  Additionally, the adapter support the following options for all commands too:
+  ### Redis Cluster runtime options
+
+  The following options apply to all commands:
 
     * `:lock_retries` - This option is specific to the `:redis_cluster` mode.
       When the config manager is running and setting up the hash slot map,
       all Redis commands get blocked until the cluster is properly configured
       and the hash slot map is ready to use. This option defines the max retry
       attempts to acquire the lock and execute the command in case the
-      configuration manager is running and all commands are locked..
+      configuration manager is running and all commands are locked.
       Defaults to `:infinity`.
 
-  ## Telemetry events
+  ## Custom Keyslot
+
+  As it is mentioned in the configuration options above, the `:redis_cluster`
+  and `:client_side_cluster` modes have a default value for the `:keyslot`
+  option. However, you can also provide your own implementation by implementing
+  the `Nebulex.Adapter.Keyslot` and configuring the `:keyslot` option.
+  For example:
+
+      defmodule MyApp.ClusteredCache.Keyslot do
+        use Nebulex.Adapter.Keyslot
+
+        @impl true
+        def hash_slot(key, range) do
+          # your implementation goes here
+        end
+      end
+
+  And the config:
+
+      config :my_app, MyApp.ClusteredCache,
+        mode: :client_side_cluster,
+        client_side_cluster: [
+          keyslot: MyApp.ClusteredCache.Keyslot,
+          nodes: [
+            ...
+          ]
+        ]
+
+  > **NOTE:** For `:redis_cluster` mode, the`:keyslot` implementation must
+    follow the [Redis cluster specification][redis_cluster_spec].
+
+  [redis_cluster_spec]: https://redis.io/docs/reference/cluster-spec/
+
+  ## TTL or Expiration Time
+
+  As is explained in `Nebulex.Cache`, most of the write-like functions support
+  the `:ttl` option to define the expiration time, and it is defined in
+  **milliseconds**. Despite Redis work with **seconds**, the conversion logic
+  is handled by the adapter transparently, so when using a cache even with the
+  Redis adapter, be sure you pass the `:ttl` option in **milliseconds**.
+
+  ## Data Types
+
+  Currently. the adapter only works with strings, which means a given Elixir
+  term is encoded to a binary/string before executing a command. Similarly,
+  a returned binary from Redis after executing a command is decoded into an
+  Elixir term. The encoding/decoding process is performed by the adapter
+  under-the-hood. However, it is possible to provide a custom serializer via the
+  option `:serializer`. The value must be module implementing the
+  `NebulexRedisAdapter.Serializer` behaviour.
+
+  **NOTE:** Support for other Redis Data Types is in the roadmap.
+
+  ## Queryable API
+
+  Since the queryable API is implemented by using `KEYS` command,
+  keep in mind the following caveats:
+
+    * Only keys can be queried.
+    * Only strings and predefined queries are allowed as query values.
+
+  ### Predefined queries
+
+    * `nil` - All keys are returned.
+
+    * `{:in, [term]}` - Only the keys in the given key list (`[term]`)
+      are returned. This predefined query is only supported for
+      `c:Nebulex.Cache.delete_all/2`. This is the recommended
+      way of doing bulk delete of keys.
+
+  ### Examples
+
+      iex> MyApp.RedisCache.put_all(%{
+      ...>   "firstname" => "Albert",
+      ...>   "lastname" => "Einstein",
+      ...>   "age" => 76
+      ...> })
+      :ok
+
+      iex> MyApp.RedisCache.all("**name**")
+      ["firstname", "lastname"]
+
+      iex> MyApp.RedisCache.all("a??")
+      ["age"]
+
+      iex> MyApp.RedisCache.all()
+      ["age", "firstname", "lastname"]
+
+      iex> stream = MyApp.RedisCache.stream("**name**")
+      iex> stream |> Enum.to_list()
+      ["firstname", "lastname"]
+
+      # get the values for the returned queried keys
+      iex> "**name**" |> MyApp.RedisCache.all() |> MyApp.RedisCache.get_all()
+      %{"firstname" => "Albert", "lastname" => "Einstein"}
+
+  ### Deleting multiple keys at once (bulk delete)
+
+      iex> MyApp.RedisCache.delete_all({:in, ["foo", "bar"]})
+      2
+
+  ## Transactions
+
+  This adapter doesn't provide support for transactions. However, in the future,
+  it is planned support [Redis Transactions][redis_transactions] by using the
+  commands `MULTI`, `EXEC`, `DISCARD` and `WATCH`.
+
+  [redis_transactions]: https://redis.io/docs/manual/transactions/
+
+  ## Running Redis commands and/or pipelines
+
+  Since `NebulexRedisAdapter` works on top of `Redix` and provides features like
+  connection pools and "Redis Cluster" support, it may be seen also as a sort of
+  Redis client, but it is meant to be used mainly with the Nebulex cache API.
+  However, Redis API is quite extensive and there are a lot of useful commands
+  we may want to run taking advantage of the `NebulexRedisAdapter` features.
+  Therefore, the adapter provides two additional/extended functions to the
+  defined cache: `command!/2` and `pipeline!/2`.
+
+  ### `command!(command, opts \\\\ [])`
+
+      iex> MyCache.command!(["LPUSH", "mylist", "world"], key: "mylist")
+      1
+      iex> MyCache.command!(["LPUSH", "mylist", "hello"], key: "mylist")
+      2
+      iex> MyCache.command!(["LRANGE", "mylist", "0", "-1"], key: "mylist")
+      ["hello", "world"]
+
+  ### `pipeline!(commands, opts \\\\ [])`
+
+      iex> [
+      ...>   ["LPUSH", "mylist", "world"],
+      ...>   ["LPUSH", "mylist", "hello"],
+      ...>   ["LRANGE", "mylist", "0", "-1"]
+      ...> ]
+      ...> |> cache.pipeline!(key: "mylist")
+      [1, 2, ["hello", "world"]]
+
+  ### Options for `command!/2` and `pipeline!/2`:
+
+    * `:key` - It is required when used the adapter in mode `:redis_cluster`
+      or `:client_side_cluster` so that the node where the commands will
+      take place can be selected properly. For `:standalone` mode is not
+      required (optional).
+    * `:name` - The name of the cache in case you are using dynamic caches,
+      otherwise it is not required.
+
+  Since these functions run on top of `Redix`, they also accept their options
+  (e.g.: `:timeout`, and `:telemetry_metadata`). See `Redix` docs for more
+  information.
+
+  ## Telemetry
 
   This adapter emits the recommended Telemetry events.
   See the "Telemetry events" section in `Nebulex.Cache`
@@ -116,272 +342,6 @@ defmodule NebulexRedisAdapter do
       * `:reason` - The reason of the error.
       * `:stacktrace` - The stacktrace.
 
-  ## TTL or Expiration Time
-
-  As is explained in `Nebulex.Cache`, most of the write-like functions support
-  the `:ttl` option to define the expiration time, and it is defined in
-  **milliseconds**. Despite Redis work with **seconds**, the conversion logic
-  is handled by the adapter transparently, so when using a cache even with the
-  Redis adapter, be sure you pass the `:ttl` option in **milliseconds**.
-
-  ## Data Types
-
-  Currently. the adapter only works with strings, which means a given Elixir
-  term is encoded to a binary/string before executing a command. Similarly,
-  a returned binary from Redis after executing a command is decoded into an
-  Elixir term. The encoding/decoding process is performed by the adapter
-  under-the-hood. However, it is possible to provide a custom serializer via the
-  option `:serializer`. The value must be module implementing the
-  `NebulexRedisAdapter.Serializer` behaviour.
-
-  **NOTE:** Support for other Redis Data Types is in the roadmap.
-
-  ## Standalone
-
-  We can define a cache to use Redis as follows:
-
-      defmodule MyApp.RedisCache do
-        use Nebulex.Cache,
-          otp_app: :nebulex,
-          adapter: NebulexRedisAdapter
-      end
-
-  The configuration for the cache must be in your application environment,
-  usually defined in your `config/config.exs`:
-
-      config :my_app, MyApp.RedisCache,
-        conn_opts: [
-          host: "127.0.0.1",
-          port: 6379
-        ]
-
-  ## Redis Cluster
-
-  We can define a cache to use Redis Cluster as follows:
-
-      defmodule MyApp.RedisClusterCache do
-        use Nebulex.Cache,
-          otp_app: :nebulex,
-          adapter: NebulexRedisAdapter
-      end
-
-  The config:
-
-      config :my_app, MyApp.RedisClusterCache,
-        mode: :redis_cluster,
-        # Configuration endpoint
-        conn_opts: [
-          host: "127.0.0.1",
-          port: 6379,
-          # Add the password if 'requirepass' is on
-          password: "password"
-        ]
-
-  **IMPORTANT:** The option `:master_nodes` has been removed in favor of the
-  new cluster management strategy. Instead of `:master_nodes`, you just need
-  to configure the `:conn_opts` pointing to your configuration endpoint
-  (which could be one of the master nodes). See the **"Redis Cluster options"**
-  next.
-
-  ### Redis Cluster options
-
-  In addition to shared options, `:redis_cluster` mode supports the following
-  options:
-
-    * `:conn_opts` - Same as shared options but for Redis cluster mode, it
-      defines the Redis client options but for the configuration endpoint.
-      This is where the client should connect to send the **"CLUSTER SHARDS"**
-      (Redis >= 7) or **"CLUSTER SLOTS"** (Redis < 7) command to get the cluster
-      information and set it up on the client side.
-
-    * `:pool_size` - (Optional) Same as shared options. It applies to all
-      cluster slots, meaning all connection pools will have the same size.
-
-    * `:override_master_host` - (Optional) Defines whether the given master host
-      should be overridden with the configuration endpoint or not. Defaults to
-      `false`. By default, the adapter uses the host returned by the
-      **"CLUSTER SHARDS"** (Redis >= 7) or **"CLUSTER SLOTS"** (Redis < 7)
-      command. One may consider set it to `true` for tests when using Docker
-      for example, or when Redis nodes are behind a load balancer that Redis
-      doesn't know the endpoint of. See Redis docs for more information.
-
-  ## Client-side cluster
-
-  We can define a cache with "client-side cluster mode" as follows:
-
-      defmodule MyApp.ClusteredCache do
-        use Nebulex.Cache,
-          otp_app: :nebulex,
-          adapter: NebulexRedisAdapter
-      end
-
-  The config:
-
-      config :my_app, MyApp.ClusteredCache,
-        mode: :client_side_cluster,
-        nodes: [
-          node1: [
-            pool_size: 10,
-            conn_opts: [
-              host: "127.0.0.1",
-              port: 9001
-            ]
-          ],
-          node2: [
-            pool_size: 4,
-            conn_opts: [
-              url: "redis://127.0.0.1:9002"
-            ]
-          ],
-          node3: [
-            conn_opts: [
-              host: "127.0.0.1",
-              port: 9003
-            ]
-          ]
-        ]
-
-  By default, the adapter uses `NebulexRedisAdapter.ClientCluster.Keyslot` for
-  the keyslot. Besides, if `:jchash` is defined as dependency, the adapter will
-  use consistent-hashing automatically. However, you can also provide your own
-  implementation by implementing the `Nebulex.Adapter.Keyslot` and set it into
-  the `:keyslot` option. For example:
-
-      defmodule MyApp.ClusteredCache.Keyslot do
-        use Nebulex.Adapter.Keyslot
-
-        @impl true
-        def hash_slot(key, range) do
-          # your implementation goes here
-        end
-      end
-
-  And the config:
-
-      config :my_app, MyApp.ClusteredCache,
-        mode: :client_side_cluster,
-        keyslot: MyApp.ClusteredCache.Keyslot,
-        nodes: [
-          ...
-        ]
-
-  ### Client-side cluster options
-
-  In addition to shared options, `:client_side_cluster` mode supports the
-  following options:
-
-    * `:nodes` - The list of nodes the adapter will setup the cluster with;
-      a pool of connections is established per node. The `:client_side_cluster`
-      mode enables resilience to be able to survive in case any node(s) gets
-      unreachable. For each element of the list, we set the configuration
-      for each node, such as `:conn_opts`, `:pool_size`, etc.
-
-    * `:keyslot` - Defines the module implementing `Nebulex.Adapter.Keyslot`
-      behaviour, used to compute the node where the command will be applied to.
-      It is highly recommendable to provide a consistent hashing implementation.
-
-  ## Queryable API
-
-  Since the queryable API is implemented by using `KEYS` command,
-  keep in mind the following caveats:
-
-    * Only keys can be queried.
-    * Only strings and predefined queries are allowed as query values.
-
-  ### Predefined queries
-
-    * `nil` - All keys are returned.
-
-    * `{:in, [term]}` - Only the keys in the given key list (`[term]`)
-      are returned. This predefined query is only supported for
-      `c:Nebulex.Cache.delete_all/2`. This is the recommended
-      way of doing bulk delete of keys.
-
-  ### Examples
-
-      iex> MyApp.RedisCache.put_all(%{
-      ...>   "firstname" => "Albert",
-      ...>   "lastname" => "Einstein",
-      ...>   "age" => 76
-      ...> })
-      :ok
-
-      iex> MyApp.RedisCache.all("**name**")
-      ["firstname", "lastname"]
-
-      iex> MyApp.RedisCache.all("a??")
-      ["age"]
-
-      iex> MyApp.RedisCache.all()
-      ["age", "firstname", "lastname"]
-
-      iex> stream = MyApp.RedisCache.stream("**name**")
-      iex> stream |> Enum.to_list()
-      ["firstname", "lastname"]
-
-      # get the values for the returned queried keys
-      iex> "**name**" |> MyApp.RedisCache.all() |> MyApp.RedisCache.get_all()
-      %{"firstname" => "Albert", "lastname" => "Einstein"}
-
-  ### Deleting multiple keys at once (bulk delete)
-
-      iex> MyApp.RedisCache.delete_all({:in, ["foo", "bar"]})
-      2
-
-  ## Using the cache for executing a Redis command or pipeline
-
-  Since `NebulexRedisAdapter` works on top of `Redix` and provides features like
-  connection pools and "Redis Cluster" support, it may be seen also as a sort of
-  Redis client, but it is meant to be used mainly with the Nebulex cache API.
-  However, Redis API is quite extensive and there are a lot of useful commands
-  we may want to run taking advantage of the `NebulexRedisAdapter` features.
-  Therefore, the adapter injects two additional/extended functions to the
-  defined cache: `command!/3` and `pipeline!/3`.
-
-  ### `command!(command, opts \\ [])`
-
-      iex> MyCache.command!(["LPUSH", "mylist", "world"], key: "mylist")
-      1
-      iex> MyCache.command!(["LPUSH", "mylist", "hello"], key: "mylist")
-      2
-      iex> MyCache.command!(["LRANGE", "mylist", "0", "-1"], key: "mylist")
-      ["hello", "world"]
-
-  ### `pipeline!(commands, opts \\ [])`
-
-      iex> [
-      ...>   ["LPUSH", "mylist", "world"],
-      ...>   ["LPUSH", "mylist", "hello"],
-      ...>   ["LRANGE", "mylist", "0", "-1"]
-      ...> ]
-      ...> |> cache.pipeline!(key: "mylist")
-      [1, 2, ["hello", "world"]]
-
-  ### Options for `command!/2` and `pipeline!/2`:
-
-    * `:key` - It is required when used the adapter in mode `:redis_cluster`
-      or `:client_side_cluster` so that the node where the commands will
-      take place can be selected properly. For `:standalone` mode is not
-      required (optional).
-    * `:name` - The name of the cache in case you are using dynamic caches,
-      otherwise it is not required.
-
-  Since these functions run on top of `Redix`, they also accept their options
-  (e.g.: `:timeout`, and `:telemetry_metadata`). See `Redix` docs for more
-  information.
-
-  ## Transactions
-
-  This adapter doesn't provide support for transactions, since there is no way
-  to guarantee its execution on Redis itself, at least not in the way the
-  `c:Nebulex.Adapter.Transaction.transaction/3` works, because the anonymous
-  function can have any kind of logic, which cannot be translated easily into
-  Redis commands.
-
-  > In the future, it is planned to add to Nebulex a `multi`-like function to
-    perform multiple commands at once, perhaps that will be the best way to
-    perform [transactions via Redis](https://redis.io/topics/transactions).
-
   """
 
   # Provide Cache Implementation
@@ -405,6 +365,7 @@ defmodule NebulexRedisAdapter do
     ClientCluster,
     Command,
     Connection,
+    Options,
     RedisCluster
   }
 
@@ -476,8 +437,11 @@ defmodule NebulexRedisAdapter do
     # Init stats
     stats_counter = Stats.init(opts)
 
+    # Validate options
+    opts = Options.validate_start_opts!(opts)
+
     # Adapter mode
-    mode = Keyword.get(opts, :mode, :standalone)
+    mode = Keyword.fetch!(opts, :mode)
 
     # Local registry
     registry = normalize_module_name([name, Registry])
@@ -486,26 +450,7 @@ defmodule NebulexRedisAdapter do
     serializer_meta = assert_serializer!(opts)
 
     # Resolve the pool size
-    pool_size =
-      get_option(
-        opts,
-        :pool_size,
-        "an integer > 0",
-        &(is_integer(&1) and &1 > 0),
-        System.schedulers_online()
-      )
-
-    # Keyslot module for selecting nodes
-    keyslot =
-      if keyslot = Keyword.get(opts, :keyslot) do
-        assert_behaviour(keyslot, Nebulex.Adapter.Keyslot, "keyslot")
-      end
-
-    # Cluster nodes
-    nodes =
-      for {node_name, node_opts} <- Keyword.get(opts, :nodes, []) do
-        {node_name, Keyword.get(node_opts, :pool_size, pool_size)}
-      end
+    pool_size = Keyword.get_lazy(opts, :pool_size, fn -> System.schedulers_online() end)
 
     # Init adapter metadata
     adapter_meta =
@@ -513,8 +458,6 @@ defmodule NebulexRedisAdapter do
         cache_pid: self(),
         name: name,
         mode: mode,
-        keyslot: keyslot,
-        nodes: nodes,
         pool_size: pool_size,
         stats_counter: stats_counter,
         registry: registry,
@@ -545,16 +488,14 @@ defmodule NebulexRedisAdapter do
 
   defp assert_serializer!(opts) do
     serializer = Keyword.get(opts, :serializer, __MODULE__)
-    serializer_opts = Keyword.get(opts, :serializer_opts, [])
-
-    _ = assert_behaviour(serializer, NebulexRedisAdapter.Serializer, "serializer")
+    serializer_opts = Keyword.fetch!(opts, :serializer_opts)
 
     %{
       serializer: serializer,
-      encode_key_opts: Keyword.get(serializer_opts, :encode_key, []),
-      encode_value_opts: Keyword.get(serializer_opts, :encode_value, []),
-      decode_key_opts: Keyword.get(serializer_opts, :decode_key, []),
-      decode_value_opts: Keyword.get(serializer_opts, :decode_value, [])
+      encode_key_opts: Keyword.fetch!(serializer_opts, :encode_key),
+      encode_value_opts: Keyword.fetch!(serializer_opts, :encode_value),
+      decode_key_opts: Keyword.fetch!(serializer_opts, :decode_key),
+      decode_value_opts: Keyword.fetch!(serializer_opts, :decode_value)
     }
   end
 
@@ -935,7 +876,11 @@ defmodule NebulexRedisAdapter do
     apply(RedisCluster, :exec!, args ++ extra_args)
   end
 
-  defp group_keys_by_hash_slot(enum, %{mode: :client_side_cluster, nodes: nodes, keyslot: keyslot}) do
+  defp group_keys_by_hash_slot(enum, %{
+         mode: :client_side_cluster,
+         nodes: nodes,
+         keyslot: keyslot
+       }) do
     ClientCluster.group_keys_by_hash_slot(enum, nodes, keyslot)
   end
 

@@ -7,7 +7,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
   import NebulexRedisAdapter.Helpers
 
   alias Nebulex.Telemetry
-  alias NebulexRedisAdapter.{Connection, RedisCluster}
+  alias NebulexRedisAdapter.RedisCluster
   alias NebulexRedisAdapter.RedisCluster.PoolSupervisor
 
   require Logger
@@ -163,7 +163,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
     :ok = stop_running_shards(cluster_shards_tab, dynamic_sup, running_shards)
 
     # Setup the cluster
-    with {:ok, specs} <- get_cluster_shards(opts) do
+    with {:ok, specs, conn_opts} <- get_cluster_shards(opts) do
       running_shards =
         for {start, stop, m_host, m_port} <- specs do
           # Define slot id
@@ -172,6 +172,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
           # Define options
           opts =
             Keyword.merge(opts,
+              conn_opts: conn_opts,
               slot_id: slot_id,
               registry: registry,
               pool_size: pool_size,
@@ -215,10 +216,19 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
   end
 
   defp get_cluster_shards(opts) do
-    with {:ok, conn, config_endpoint} <- Connection.conn_opts(opts) |> connect(),
-         {:ok, cluster_info} <- cluster_info(conn) do
-      {:ok, parse_cluster_info(cluster_info, config_endpoint, opts)}
-    end
+    endpoints =
+      opts
+      |> Keyword.fetch!(:redis_cluster)
+      |> Keyword.fetch!(:configuration_endpoints)
+
+    Enum.reduce_while(endpoints, nil, fn {_name, conn_opts}, _acc ->
+      with {:ok, conn, config_endpoint} <- connect(conn_opts),
+           {:ok, cluster_info} <- cluster_info(conn) do
+        {:halt, {:ok, parse_cluster_info(cluster_info, config_endpoint, opts), conn_opts}}
+      else
+        error -> {:cont, error}
+      end
+    end)
   end
 
   defp connect(conn_opts) do
@@ -239,12 +249,17 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
     with {:error, %Redix.Error{}} <- Redix.command(conn, ["CLUSTER", "SHARDS"]) do
       Redix.command(conn, ["CLUSTER", "SLOTS"])
     end
+  after
+    Redix.stop(conn)
   end
 
   defp parse_cluster_info(config, config_endpoint, opts) do
     # Whether the given master host should be overridden with the
     # configuration endpoint or not
-    override? = Keyword.get(opts, :override_master_host, false)
+    override? =
+      opts
+      |> Keyword.fetch!(:redis_cluster)
+      |> Keyword.fetch!(:override_master_host)
 
     Enum.reduce(config, [], fn
       # Redis version >= 7 (["CLUSTER", "SHARDS"])

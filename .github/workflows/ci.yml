@@ -58,8 +58,6 @@ jobs:
           key: >-
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-${{
             hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-mix-
 
       - name: Cache _build
         uses: actions/cache@v3
@@ -68,8 +66,6 @@ jobs:
           key: >-
             ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-${{
             hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-build-
 
       - name: Install Nebulex
         run: mix nbx.setup

@@ -4,9 +4,8 @@ defmodule NebulexRedisAdapter.ClientCluster do
 
   import NebulexRedisAdapter.Helpers
 
-  alias NebulexRedisAdapter.ClientCluster.Keyslot, as: ClientClusterKeyslot
   alias NebulexRedisAdapter.ClientCluster.Supervisor, as: ClientClusterSupervisor
-  alias NebulexRedisAdapter.Pool
+  alias NebulexRedisAdapter.{Options, Pool}
 
   @typedoc "Proxy type to the adapter meta"
   @type adapter_meta :: Nebulex.Adapter.metadata()
@@ -19,8 +18,22 @@ defmodule NebulexRedisAdapter.ClientCluster do
 
   @spec init(adapter_meta, Keyword.t()) :: {Supervisor.child_spec(), adapter_meta}
   def init(%{name: name, registry: registry, pool_size: pool_size} = adapter_meta, opts) do
-    node_connections_specs =
-      for {node_name, node_opts} <- Keyword.get(opts, :nodes, []) do
+    cluster_opts = Keyword.get(opts, :client_side_cluster)
+
+    # Ensure :client_side_cluster is provided
+    if is_nil(cluster_opts) do
+      raise ArgumentError,
+            Options.invalid_cluster_config_error(
+              "invalid value for :client_side_cluster option: ",
+              nil,
+              :client_side_cluster
+            )
+    end
+
+    {node_connections_specs, nodes} =
+      cluster_opts
+      |> Keyword.fetch!(:nodes)
+      |> Enum.reduce({[], []}, fn {node_name, node_opts}, {acc1, acc2} ->
         node_opts =
           node_opts
           |> Keyword.put(:name, name)
@@ -28,11 +41,14 @@ defmodule NebulexRedisAdapter.ClientCluster do
           |> Keyword.put(:node, node_name)
           |> Keyword.put_new(:pool_size, pool_size)
 
-        Supervisor.child_spec({ClientClusterSupervisor, node_opts},
-          type: :supervisor,
-          id: {name, node_name}
-        )
-      end
+        child_spec =
+          Supervisor.child_spec({ClientClusterSupervisor, node_opts},
+            type: :supervisor,
+            id: {name, node_name}
+          )
+
+        {[child_spec | acc1], [{node_name, Keyword.fetch!(node_opts, :pool_size)} | acc2]}
+      end)
 
     node_connections_supervisor_spec = %{
       id: :node_connections_supervisor,
@@ -40,8 +56,12 @@ defmodule NebulexRedisAdapter.ClientCluster do
       start: {Supervisor, :start_link, [node_connections_specs, [strategy: :one_for_one]]}
     }
 
+    # Update adapter meta
     adapter_meta =
-      Map.update(adapter_meta, :keyslot, ClientClusterKeyslot, &(&1 || ClientClusterKeyslot))
+      Map.merge(adapter_meta, %{
+        nodes: nodes,
+        keyslot: Keyword.fetch!(cluster_opts, :keyslot)
+      })
 
     {node_connections_supervisor_spec, adapter_meta}
   end
@@ -87,10 +107,12 @@ defmodule NebulexRedisAdapter.ClientCluster do
     Enum.reduce(enum, %{}, fn
       {key, _} = entry, acc ->
         hash_slot = hash_slot(module, key, nodes)
+
         Map.put(acc, hash_slot, [entry | Map.get(acc, hash_slot, [])])
 
       key, acc ->
         hash_slot = hash_slot(module, key, nodes)
+
         Map.put(acc, hash_slot, [key | Map.get(acc, hash_slot, [])])
     end)
   end

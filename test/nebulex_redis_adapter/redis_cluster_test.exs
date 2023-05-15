@@ -30,6 +30,46 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
       {:ok, events: [start_event, stop_event]}
     end
 
+    test "error: missing :redis_cluster option" do
+      defmodule RedisClusterWithInvalidOpts do
+        @moduledoc false
+        use Nebulex.Cache,
+          otp_app: :nebulex_redis_adapter,
+          adapter: NebulexRedisAdapter
+      end
+
+      _ = Process.flag(:trap_exit, true)
+
+      assert {:error, {%ArgumentError{message: msg}, _}} =
+               RedisClusterWithInvalidOpts.start_link(mode: :redis_cluster)
+
+      assert Regex.match?(~r/invalid value for :redis_cluster option: expected non-empty/, msg)
+    end
+
+    test "error: invalid :redis_cluster options" do
+      _ = Process.flag(:trap_exit, true)
+
+      assert {:error, {%ArgumentError{message: msg}, _}} =
+               Cache.start_link(name: :redis_cluster_invalid_opts1, redis_cluster: [])
+
+      assert Regex.match?(~r/invalid value for :redis_cluster option: expected non-empty/, msg)
+    end
+
+    test "error: invalid :keyslot option" do
+      _ = Process.flag(:trap_exit, true)
+
+      assert {:error, {%ArgumentError{message: msg}, _}} =
+               Cache.start_link(
+                 name: :redis_cluster_invalid_opts2,
+                 redis_cluster: [configuration_endpoints: [x: []], keyslot: RedisClusterConnError]
+               )
+
+      assert msg ==
+               "invalid value for :keyslot option: expected " <>
+                 "NebulexRedisAdapter.TestCache.RedisClusterConnError " <>
+                 "to implement the behaviour Nebulex.Adapter.Keyslot"
+    end
+
     test "error: connection with config endpoint cannot be established", %{events: [_, stop]} do
       with_telemetry_handler(__MODULE__, [stop], fn ->
         {:ok, _pid} = RedisClusterConnError.start_link()
@@ -46,9 +86,14 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
       with_telemetry_handler(__MODULE__, events, fn ->
         {:ok, _} =
           RedisClusterConnError.start_link(
-            conn_opts: [
-              host: "127.0.0.1",
-              port: 7000
+            redis_cluster: [
+              configuration_endpoints: [
+                endpoint1_conn_opts: [
+                  host: "127.0.0.1",
+                  port: 7000
+                ]
+              ],
+              override_master_host: true
             ]
           )
 
@@ -67,9 +112,14 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
       with_telemetry_handler(__MODULE__, [stop], fn ->
         {:ok, _} =
           RedisClusterConnError.start_link(
-            conn_opts: [
-              host: "127.0.0.1",
-              port: 7000
+            redis_cluster: [
+              configuration_endpoints: [
+                endpoint1_conn_opts: [
+                  host: "127.0.0.1",
+                  port: 7000
+                ]
+              ],
+              override_master_host: true
             ]
           )
 
@@ -92,7 +142,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
     end
   end
 
-  describe "keys hash tags" do
+  describe "keys with hash tags" do
     test "hash_slot/2" do
       for i <- 0..10 do
         assert RedisCluster.hash_slot("{foo}.#{i}") ==
@@ -105,7 +155,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
       assert RedisCluster.hash_slot("{foo.1") != RedisCluster.hash_slot("{foo.2")
     end
 
-    test "with put and get operations" do
+    test "put and get operations" do
       assert Cache.put_all(%{"{foo}.1" => "bar1", "{foo}.2" => "bar2"}) == :ok
 
       assert Cache.get_all(["{foo}.1", "{foo}.2"]) == %{"{foo}.1" => "bar1", "{foo}.2" => "bar2"}
@@ -124,12 +174,12 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
 
       {:ok, _pid} = RedisClusterWithKeyslot.start_link()
 
-      # put is executed throughout a Redis command
+      # put is executed with a Redis command
       assert_raise Redix.Error, ~r"MOVED", fn ->
         RedisClusterWithKeyslot.put("1234567890", "hello")
       end
 
-      # put_all is executed throughout a Redis pipeline
+      # put_all is executed with a Redis pipeline
       assert_raise Redix.Error, ~r"MOVED", fn ->
         RedisClusterWithKeyslot.put_all(foo: "bar", bar: "foo")
       end

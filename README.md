@@ -79,9 +79,6 @@ See also [Redis cache example][nbx_redis_example].
 There are different ways to support distributed caching when using
 **NebulexRedisAdapter**.
 
-> To learn more about the available config options for the different cluster
-  alternatives below, check out the [online documentation][nebulex_redis_adapter].
-
 ### Redis Cluster
 
 [Redis Cluster][redis_cluster] is a built-in feature in Redis since version 3,
@@ -109,25 +106,22 @@ config :my_app, MyApp.RedisClusterCache,
   # Enable redis_cluster mode
   mode: :redis_cluster,
 
-  # Configuration endpoint.
-  # Same as shared options but for Redis cluster mode, it
-  # defines the Redis client options but for the configuration endpoint.
-  # This is where the client should connect to send the "CLUSTER SHARDS"
-  # (Redis >= 7) or "CLUSTER SLOTS" (Redis < 7) command to get the cluster
-  # information and set it up on the client side.
-  conn_opts: [
-    host: "127.0.0.1",
-    port: 6379,
-    # Add the password if 'requirepass' is on
-    password: "password"
+  # For :redis_cluster mode this option must be provided
+  redis_cluster: [
+    # Configuration endpoint.
+    # This is where the client will connect and send the "CLUSTER SHARDS"
+    # (Redis >= 7) or "CLUSTER SLOTS" (Redis < 7) command to get the cluster
+    # information and set it up on the client side.
+    configuration_endpoints: [
+      endpoint1_conn_opts: [
+        host: "127.0.0.1",
+        port: 6379,
+        # Add the password if 'requirepass' is on
+        password: "password"
+      ]
+    ]
   ]
 ```
-
-**IMPORTANT:** The option `:master_nodes` has been removed in favor of the
-  new cluster management strategy. Instead of `:master_nodes`, you just need
-  to configure the `:conn_opts` pointing to your configuration endpoint
-  (which could be one of the master nodes). See
-  [Redis Cluster options](https://hexdocs.pm/nebulex_redis_adapter/NebulexRedisAdapter.html#module-redis-cluster-options)
 
 The pool of connections to the different master nodes is automatically
 configured by the adapter once it gets the cluster slots info.
@@ -157,31 +151,34 @@ config :my_app, MyApp.ClusteredCache,
   # Enable client-side cluster mode
   mode: :client_side_cluster,
 
-  # Nodes config (each node has its own options)
-  nodes: [
-    node1: [
-      # Node pool size
-      pool_size: 10,
+  # For :client_side_cluster mode this option must be provided
+  client_side_cluster: [
+    # Nodes config (each node has its own options)
+    nodes: [
+      node1: [
+        # Node pool size
+        pool_size: 10,
 
-      # Redix options to establish the pool of connections against this node
-      conn_opts: [
-        host: "127.0.0.1",
-        port: 9001
+        # Redix options to establish the pool of connections against this node
+        conn_opts: [
+          host: "127.0.0.1",
+          port: 9001
+        ]
+      ],
+      node2: [
+        pool_size: 4,
+        conn_opts: [
+          url: "redis://127.0.0.1:9002"
+        ]
+      ],
+      node3: [
+        conn_opts: [
+          host: "127.0.0.1",
+          port: 9003
+        ]
       ]
-    ],
-    node2: [
-      pool_size: 4,
-      conn_opts: [
-        url: "redis://127.0.0.1:9002"
-      ]
-    ],
-    node3: [
-      conn_opts: [
-        host: "127.0.0.1",
-        port: 9003
-      ]
+      # Maybe more ...
     ]
-    # Maybe more ...
   ]
 ```
 
@@ -213,16 +210,18 @@ config :my_app, MyApp.ClusteredCache,
   # Enable client-side cluster mode
   mode: :client_side_cluster,
 
-  # Provided Keyslot implementation
-  keyslot: MyApp.ClusteredCache.Keyslot,
+  client_side_cluster: [
+    # Provided Keyslot implementation
+    keyslot: MyApp.ClusteredCache.Keyslot,
 
-  # Nodes config (each node has its own options)
-  nodes: [
-    ...
+    # Nodes config (each node has its own options)
+    nodes: [
+      ...
+    ]
   ]
 ```
 
-### Using `Nebulex.Adapters.Dist`
+### Using `Nebulex.Adapters.Partitioned`
 
 Another simple option is to use the `Nebulex.Adapters.Partitioned` and set as
 local cache the `NebulexRedisAdapter`. The idea here is each Elixir node running
@@ -254,7 +253,7 @@ we setup the pool with the host and port pointing to the proxy.
 [envoy]: https://www.envoyproxy.io/
 [twemproxy]: https://github.com/twitter/twemproxy
 
-## Using the cache for executing a Redis command or pipeline
+## Running Redis commands and/or pipelines
 
 Since `NebulexRedisAdapter` works on top of `Redix` and provides features like
 connection pools and "Redis Cluster" support, it may be seen also as a sort of
@@ -262,7 +261,7 @@ Redis client, but it is meant to be used mainly with the Nebulex cache API.
 However, Redis API is quite extensive and there are a lot of useful commands
 we may want to run taking advantage of the `NebulexRedisAdapter` features.
 Therefore, the adapter injects two additional/extended functions to the
-defined cache: `command!/3` and `pipeline!/3`.
+defined cache: `command!/2` and `pipeline!/2`.
 
 ```elixir
 iex> MyCache.command!(["LPUSH", "mylist", "world"], key: "mylist")
