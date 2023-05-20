@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.3.0) (2023-05-20)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.2.0...v2.3.0)
+
+**Implemented enhancements:**
+
+- Allow passing Redis client options to `command` and `pipeline` functions
+  [#51](https://github.com/cabol/nebulex_redis_adapter/issues/51)
+- New Redis Cluster management strategy
+  [#49](https://github.com/cabol/nebulex_redis_adapter/issues/49)
+- Improve configuration for Redis Cluster mode
+  [#47](https://github.com/cabol/nebulex_redis_adapter/issues/47)
+
+**Closed issues:**
+
+- Refactoring `Codec` to `Serializer`
+  [#48](https://github.com/cabol/nebulex_redis_adapter/issues/48)
+- Configurable codec to encode/decode Redis keys and values
+  [#45](https://github.com/cabol/nebulex_redis_adapter/issues/45)
+- Configuring `match_fun` in `conn_opts` fails to build release
+  [#43](https://github.com/cabol/nebulex_redis_adapter/issues/43)
+- Redis 7 issue
+  [#38](https://github.com/cabol/nebulex_redis_adapter/issues/38)
+- Allow deletion of multiple keys
+  [#37](https://github.com/cabol/nebulex_redis_adapter/issues/37)
+
+**Merged pull requests:**
+
+- Log Cluster Connections Error
+  [#52](https://github.com/cabol/nebulex_redis_adapter/pull/52)
+  ([mjquinlan2000](https://github.com/mjquinlan2000))
+- [#49] New Redis Cluster management strategy
+  [#50](https://github.com/cabol/nebulex_redis_adapter/pull/50)
+  ([cabol](https://github.com/cabol))
+- [#45] Configurable codec to encode/decode Redis keys and values
+  [#46](https://github.com/cabol/nebulex_redis_adapter/pull/46)
+  ([cabol](https://github.com/cabol))
+- Fix `:otp_app` option in README.md
+  [#40](https://github.com/cabol/nebulex_redis_adapter/pull/40)
+  ([nallwhy](https://github.com/nallwhy))
+
 ## [v2.2.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.2.0) (2022-03-13)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.1.2...v2.2.0)

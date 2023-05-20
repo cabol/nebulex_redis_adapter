@@ -21,27 +21,27 @@ and [Redis cache example][nbx_redis_example].
 
 ## Installation
 
-Add `nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
+Add `:nebulex_redis_adapter` to your list of dependencies in `mix.exs`:
 
 ```elixir
 defp deps do
   [
-    {:nebulex_redis_adapter, "~> 2.2"},
+    {:nebulex_redis_adapter, "~> 2.3"},
     {:crc, "~> 0.10"},    #=> Needed when using Redis Cluster
-    {:jchash, "~> 0.1.2"} #=> Needed when using consistent-hashing
+    {:jchash, "~> 0.1.3"} #=> Needed when using consistent-hashing
   ]
 end
 ```
 
-In order to give more flexibility and loading only needed dependencies, this
-adapter makes all its dependencies optional. For example:
+The adapter dependencies are optional to give more flexibility and loading only
+needed ones. For example:
 
   * `:crc` - Required when using the adapter in mode `:redis_cluster`.
     See [Redis Cluster][redis_cluster].
   * `:jchash` - Required if you want to use consistent-hashing when using the
     adapter in mode `:client_side_cluster`.
 
-Then run `mix deps.get` in your shell to fetch the dependencies.
+Then run `mix deps.get` to fetch the dependencies.
 
 ## Usage
 
@@ -108,7 +108,7 @@ config :my_app, MyApp.RedisClusterCache,
 
   # For :redis_cluster mode this option must be provided
   redis_cluster: [
-    # Configuration endpoint.
+    # Configuration endpoints
     # This is where the client will connect and send the "CLUSTER SHARDS"
     # (Redis >= 7) or "CLUSTER SLOTS" (Redis < 7) command to get the cluster
     # information and set it up on the client side.
