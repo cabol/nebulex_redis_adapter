@@ -264,31 +264,14 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
     Enum.reduce(config, [], fn
       # Redis version >= 7 (["CLUSTER", "SHARDS"])
       ["slots", [start, stop], "nodes", nodes], acc ->
-        for [
-              "id",
-              _,
-              "port",
-              port,
-              "ip",
-              _,
-              "endpoint",
-              endpoint,
-              "role",
-              "master",
-              "replication-offset",
-              _,
-              "health",
-              "online"
-            ] <- nodes do
-          {endpoint, port}
-        end
+        nodes
+        |> Enum.map(&extract_endpoint_and_port/1)
         |> case do
           [] ->
             # coveralls-ignore-start
             acc
 
           # coveralls-ignore-stop
-
           [{host, port} | _] ->
             [{start, stop, host, port} | acc]
         end
@@ -301,6 +284,48 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
       {start, stop, maybe_override_host(host, config_endpoint, override?), port}
     end)
   end
+
+  defp extract_endpoint_and_port([
+         "id",
+         _,
+         "port",
+         port,
+         "ip",
+         _,
+         "endpoint",
+         endpoint,
+         "role",
+         "master",
+         "replication-offset",
+         _,
+         "health",
+         "online"
+       ]) do
+    {endpoint, port}
+  end
+
+  defp extract_endpoint_and_port([
+         "id",
+         _,
+         "tls-port",
+         port,
+         "ip",
+         _,
+         "endpoint",
+         endpoint,
+         "hostname",
+         _,
+         "role",
+         "master",
+         "replication-offset",
+         _,
+         "health",
+         "online"
+       ]) do
+    {endpoint, port}
+  end
+
+  defp extract_endpoint_and_port(_), do: []
 
   defp maybe_override_host(_host, config_endpoint, true) do
     config_endpoint
