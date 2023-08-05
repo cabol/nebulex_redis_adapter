@@ -2,8 +2,8 @@ defmodule NebulexRedisAdapter.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/cabol/nebulex_redis_adapter"
-  @version "2.3.0"
-  @nbx_tag "2.5.0"
+  @version "2.3.1"
+  @nbx_tag "2.5.2"
   @nbx_vsn "2.5"
 
   def project do
@@ -53,7 +53,7 @@ defmodule NebulexRedisAdapter.MixProject do
       {:redix, "~> 1.2"},
       {:nimble_options, "~> 0.5 or ~> 1.0"},
       {:crc, "~> 0.10", optional: true},
-      {:jchash, "~> 0.1.3", optional: true},
+      {:jchash, "~> 0.1", optional: true},
       {:telemetry, "~> 0.4 or ~> 1.0", optional: true},
 
       # Test & Code Analysis
