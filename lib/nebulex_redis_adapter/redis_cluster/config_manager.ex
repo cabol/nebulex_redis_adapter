@@ -283,7 +283,8 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
         [{start, stop, host, port} | acc]
     end)
     |> Enum.map(fn {start, stop, host, port} ->
-      {start, stop, maybe_override_host(host, config_endpoint, override?), port}
+      {maybe_convert_to_integer(start), maybe_convert_to_integer(stop),
+       maybe_override_host(host, config_endpoint, override?), port}
     end)
   end
 
@@ -316,4 +317,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
   end
 
   # coveralls-ignore-stop
+
+  defp maybe_convert_to_integer(value) when is_binary(value), do: String.to_integer(value)
+  defp maybe_convert_to_integer(value), do: value
 end
