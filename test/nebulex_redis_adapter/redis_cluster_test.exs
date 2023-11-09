@@ -160,6 +160,31 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
 
       assert Cache.get_all(["{foo}.1", "{foo}.2"]) == %{"{foo}.1" => "bar1", "{foo}.2" => "bar2"}
     end
+
+    test "put and get operations with tupled keys" do
+      assert Cache.put_all(%{
+               {RedisCache.Testing, "key1"} => "bar1",
+               {RedisCache.Testing, "key2"} => "bar2"
+             }) == :ok
+
+      assert Cache.get_all([{RedisCache.Testing, "key1"}, {RedisCache.Testing, "key2"}]) == %{
+               {RedisCache.Testing, "key1"} => "bar1",
+               {RedisCache.Testing, "key2"} => "bar2"
+             }
+
+      assert Cache.put_all(%{
+               {RedisCache.Testing, {Nested, "key1"}} => "bar1",
+               {RedisCache.Testing, {Nested, "key2"}} => "bar2"
+             }) == :ok
+
+      assert Cache.get_all([
+               {RedisCache.Testing, {Nested, "key1"}},
+               {RedisCache.Testing, {Nested, "key2"}}
+             ]) == %{
+               {RedisCache.Testing, {Nested, "key1"}} => "bar1",
+               {RedisCache.Testing, {Nested, "key2"}} => "bar2"
+             }
+    end
   end
 
   describe "MOVED" do
