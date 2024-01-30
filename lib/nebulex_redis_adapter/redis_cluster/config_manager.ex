@@ -263,7 +263,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
     Enum.reduce(config, [], fn
       # Redis version >= 7 (["CLUSTER", "SHARDS"])
-      ["slots", [start, stop], "nodes", nodes], acc ->
+      ["slots", slot_ranges, "nodes", nodes], acc ->
         case parse_node_attrs(nodes) do
           [] ->
             # coveralls-ignore-start
@@ -275,7 +275,9 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
             host = attrs["endpoint"]
             port = attrs["tls-port"] || attrs["port"]
 
-            [{start, stop, host, port} | acc]
+            slot_ranges
+            |> Enum.chunk_every(2)
+            |> Enum.reduce(acc, fn [start, stop], acc -> [{start, stop, host, port} | acc] end)
         end
 
       # Redis version < 7 (["CLUSTER", "SLOTS"])
