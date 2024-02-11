@@ -66,21 +66,3 @@ config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterConnErr
     # 127.0.0.1, since for tests we use Docker. For prod this should be false.
     override_master_host: true
   ]
-
-# Redis Cluster mode with custom Keyslot
-config :nebulex_redis_adapter, NebulexRedisAdapter.TestCache.RedisClusterWithKeyslot,
-  mode: :redis_cluster,
-  pool_size: 2,
-  redis_cluster: [
-    # Configuration endpoints
-    configuration_endpoints: [
-      endpoint1_conn_opts: [
-        url: "redis://127.0.0.1:7000"
-      ]
-    ],
-    # Overrides the master host with the config endpoint, in this case with
-    # 127.0.0.1, since for tests we use Docker. For prod this should be false.
-    override_master_host: true,
-    # Custom keyslot
-    keyslot: NebulexRedisAdapter.TestCache.Keyslot
-  ]

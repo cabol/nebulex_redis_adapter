@@ -23,6 +23,7 @@ defmodule NebulexRedisAdapter.Command do
           Keyword.t()
         ) :: {:ok, term} | {:error, term}
   def exec(adapter_meta, command, key \\ nil, opts \\ []) do
+    # TODO: Handle errors; especially for :redis_cluster mode
     adapter_meta
     |> conn(key, opts)
     |> Redix.command(command, redis_command_opts(opts))
@@ -72,6 +73,7 @@ defmodule NebulexRedisAdapter.Command do
           Keyword.t()
         ) :: {:ok, [term]} | {:error, term}
   def pipeline(adapter_meta, commands, key \\ nil, opts \\ []) do
+    # TODO: Handle errors; especially for :redis_cluster mode
     adapter_meta
     |> conn(key, opts)
     |> Redix.pipeline(commands, redis_command_opts(opts))

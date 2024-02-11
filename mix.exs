@@ -3,14 +3,14 @@ defmodule NebulexRedisAdapter.MixProject do
 
   @source_url "https://github.com/cabol/nebulex_redis_adapter"
   @version "2.3.1"
-  @nbx_tag "2.5.2"
-  @nbx_vsn "2.5"
+  @nbx_tag "2.6.0"
+  @nbx_vsn "2.6"
 
   def project do
     [
       app: :nebulex_redis_adapter,
       version: @version,
-      elixir: "~> 1.9",
+      elixir: "~> 1.12",
       elixirc_paths: elixirc_paths(Mix.env()),
       aliases: aliases(),
       deps: deps(),
@@ -50,24 +50,24 @@ defmodule NebulexRedisAdapter.MixProject do
   defp deps do
     [
       nebulex_dep(),
-      {:redix, "~> 1.2"},
+      {:redix, "~> 1.3"},
       {:nimble_options, "~> 0.5 or ~> 1.0"},
       {:crc, "~> 0.10", optional: true},
       {:jchash, "~> 0.1", optional: true},
       {:telemetry, "~> 0.4 or ~> 1.0", optional: true},
 
       # Test & Code Analysis
-      {:excoveralls, "~> 0.16", only: :test},
-      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.2", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mimic, "~> 1.7", only: :test},
 
       # Benchmark Test
-      {:benchee, "~> 1.1", only: :test},
+      {:benchee, "~> 1.3", only: :test},
       {:benchee_html, "~> 1.0", only: :test},
 
       # Docs
-      {:ex_doc, "~> 0.29", only: [:dev, :test], runtime: false}
+      {:ex_doc, "~> 0.31", only: [:dev, :test], runtime: false}
     ]
   end
 

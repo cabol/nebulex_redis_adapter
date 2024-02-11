@@ -537,7 +537,7 @@ defmodule NebulexRedisAdapter do
 
   defp do_get_all(adapter_meta, keys, opts) do
     keys
-    |> group_keys_by_hash_slot(adapter_meta)
+    |> group_keys_by_hash_slot(adapter_meta, :keys)
     |> Enum.reduce(%{}, fn {hash_slot, keys}, acc ->
       return = mget(hash_slot, adapter_meta, keys, opts)
 
@@ -599,7 +599,7 @@ defmodule NebulexRedisAdapter do
 
       _ ->
         entries
-        |> group_keys_by_hash_slot(adapter_meta)
+        |> group_keys_by_hash_slot(adapter_meta, :tuples)
         |> Enum.reduce(:ok, fn {hash_slot, group}, acc ->
           acc && do_put_all(adapter_meta, hash_slot, group, ttl, on_write, opts)
         end)
@@ -782,7 +782,7 @@ defmodule NebulexRedisAdapter do
        when is_list(keys) do
     :ok =
       keys
-      |> group_keys_by_hash_slot(adapter_meta)
+      |> group_keys_by_hash_slot(adapter_meta, :keys)
       |> Enum.each(fn {hash_slot, keys_group} ->
         Command.exec!(
           adapter_meta,
@@ -876,16 +876,20 @@ defmodule NebulexRedisAdapter do
     apply(RedisCluster, :exec!, args ++ extra_args)
   end
 
-  defp group_keys_by_hash_slot(enum, %{
-         mode: :client_side_cluster,
-         nodes: nodes,
-         keyslot: keyslot
-       }) do
-    ClientCluster.group_keys_by_hash_slot(enum, nodes, keyslot)
+  defp group_keys_by_hash_slot(
+         enum,
+         %{
+           mode: :client_side_cluster,
+           nodes: nodes,
+           keyslot: keyslot
+         },
+         enum_type
+       ) do
+    ClientCluster.group_keys_by_hash_slot(enum, nodes, keyslot, enum_type)
   end
 
-  defp group_keys_by_hash_slot(enum, %{mode: :redis_cluster, keyslot: keyslot}) do
-    RedisCluster.group_keys_by_hash_slot(enum, keyslot)
+  defp group_keys_by_hash_slot(enum, %{mode: :redis_cluster, keyslot: keyslot}, enum_type) do
+    RedisCluster.group_keys_by_hash_slot(enum, keyslot, enum_type)
   end
 
   defp enc_key(%{serializer: serializer, encode_key_opts: enc_key_opts}, key) do

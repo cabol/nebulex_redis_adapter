@@ -28,7 +28,7 @@ defp deps do
   [
     {:nebulex_redis_adapter, "~> 2.3"},
     {:crc, "~> 0.10"},    #=> Needed when using Redis Cluster
-    {:jchash, "~> 0.1.3"} #=> Needed when using consistent-hashing
+    {:jchash, "~> 0.1.4"} #=> Needed when using consistent-hashing
   ]
 end
 ```

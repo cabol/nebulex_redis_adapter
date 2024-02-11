@@ -29,13 +29,6 @@ services:
     networks:
       - redis_net
 
-  redis-cluster:
-    image: grokzen/redis-cluster:6.2.10
-    ports:
-      - '7000-7005:7000-7005'
-    environment:
-      - 'REDIS_CLUSTER_IP=0.0.0.0'
-
   cluster-initiator:
     image: 'redis:7-alpine'
     command: >
@@ -124,6 +117,7 @@ volumes:
   redis-node-3-data:
   redis-node-4-data:
   redis-node-5-data:
+
 
 networks:
   redis_net:

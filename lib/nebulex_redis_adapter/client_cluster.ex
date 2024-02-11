@@ -102,19 +102,13 @@ defmodule NebulexRedisAdapter.ClientCluster do
     Pool.get_conn(registry, {name, node_name}, pool_size)
   end
 
-  @spec group_keys_by_hash_slot(Enum.t(), nodes_config, module) :: map
-  def group_keys_by_hash_slot(enum, nodes, module) do
-    Enum.reduce(enum, %{}, fn
-      {key, _} = entry, acc ->
-        hash_slot = hash_slot(module, key, nodes)
+  @spec group_keys_by_hash_slot(Enum.t(), nodes_config, module, atom()) :: map
+  def group_keys_by_hash_slot(enum, nodes, module, :keys) do
+    Enum.group_by(enum, &hash_slot(module, &1, nodes))
+  end
 
-        Map.put(acc, hash_slot, [entry | Map.get(acc, hash_slot, [])])
-
-      key, acc ->
-        hash_slot = hash_slot(module, key, nodes)
-
-        Map.put(acc, hash_slot, [key | Map.get(acc, hash_slot, [])])
-    end)
+  def group_keys_by_hash_slot(enum, nodes, module, :tuples) do
+    Enum.group_by(enum, fn {key, _} -> hash_slot(module, key, nodes) end)
   end
 
   ## Private Functions
