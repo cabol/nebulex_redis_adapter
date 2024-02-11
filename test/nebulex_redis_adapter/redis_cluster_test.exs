@@ -7,7 +7,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
 
   alias NebulexRedisAdapter.RedisCluster
   alias NebulexRedisAdapter.TestCache.RedisCluster, as: Cache
-  alias NebulexRedisAdapter.TestCache.{RedisClusterConnError, RedisClusterWithKeyslot}
+  alias NebulexRedisAdapter.TestCache.RedisClusterConnError
 
   setup do
     {:ok, pid} = Cache.start_link()
@@ -90,7 +90,8 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
               configuration_endpoints: [
                 endpoint1_conn_opts: [
                   host: "127.0.0.1",
-                  port: 7000
+                  port: 6380,
+                  password: "password"
                 ]
               ],
               override_master_host: true
@@ -108,20 +109,28 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
       end)
     end
 
-    test "error: command failed after reconfiguring cluster", %{events: [_, stop]} do
-      with_telemetry_handler(__MODULE__, [stop], fn ->
+    test "error: command failed after reconfiguring cluster", %{events: [start, stop] = events} do
+      with_telemetry_handler(__MODULE__, events, fn ->
         {:ok, _} =
           RedisClusterConnError.start_link(
             redis_cluster: [
               configuration_endpoints: [
                 endpoint1_conn_opts: [
-                  host: "127.0.0.1",
-                  port: 7000
+                  url: "redis://127.0.0.1:6380",
+                  password: "password"
                 ]
               ],
               override_master_host: true
             ]
           )
+
+        assert_receive {^start, _, %{pid: pid}}, 5000
+
+        # Setup mocks - testing Redis version < 7 (["CLUSTER", "SLOTS"])
+        Redix
+        |> expect(:command, fn _, _ -> {:error, %Redix.Error{}} end)
+        |> expect(:command, fn _, _ -> {:ok, [[0, 16_384, ["127.0.0.1", 6380]]]} end)
+        |> allow(self(), pid)
 
         assert_receive {^stop, %{duration: _}, %{status: :ok}}, 5000
 
@@ -197,16 +206,18 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
     test "error: raises an exception in the 2nd attempt after reconfiguring the cluster" do
       _ = Process.flag(:trap_exit, true)
 
-      {:ok, _pid} = RedisClusterWithKeyslot.start_link()
+      # Setup mocks
+      NebulexRedisAdapter.RedisCluster.Keyslot
+      |> stub(:hash_slot, &:erlang.phash2/2)
 
       # put is executed with a Redis command
       assert_raise Redix.Error, ~r"MOVED", fn ->
-        RedisClusterWithKeyslot.put("1234567890", "hello")
+        Cache.put("1234567890", "hello")
       end
 
       # put_all is executed with a Redis pipeline
       assert_raise Redix.Error, ~r"MOVED", fn ->
-        RedisClusterWithKeyslot.put_all(foo: "bar", bar: "foo")
+        Cache.put_all(foo: "bar", bar: "foo")
       end
     end
 

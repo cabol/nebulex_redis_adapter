@@ -148,7 +148,7 @@ defmodule NebulexRedisAdapter.RedisCluster do
     |> :persistent_term.erase()
   end
 
-  @spec with_retry(atom, pos_integer, (() -> term)) :: term
+  @spec with_retry(atom, pos_integer, (-> term)) :: term
   def with_retry(name, retries, fun) do
     with_retry(name, fun, retries, 1)
   end
