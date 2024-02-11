@@ -318,8 +318,8 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
     host
   end
 
-  # coveralls-ignore-stop
-
   defp maybe_convert_to_integer(value) when is_binary(value), do: String.to_integer(value)
   defp maybe_convert_to_integer(value), do: value
+
+  # coveralls-ignore-stop
 end
