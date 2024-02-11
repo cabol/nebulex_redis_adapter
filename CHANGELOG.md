@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.4.0) (2024-02-11)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.3.1...v2.4.0)
+
+**Closed issues:**
+
+- Consistently getting MOVED error with a cluster
+  [#55](https://github.com/cabol/nebulex_redis_adapter/issues/55)
+
+**Merged pull requests:**
+
+- Handle multiple slot ranges
+  [#58](https://github.com/cabol/nebulex_redis_adapter/pull/58)
+  ([dongfuye](https://github.com/dongfuye))
+- Support tuples as keys for `get_all`/`put_all` callbacks in Redis/Client cluster
+  [#57](https://github.com/cabol/nebulex_redis_adapter/pull/57)
+  ([DanielKulesza](https://github.com/DanielKulesza))
+- Support string slot values in CLUSTER SHARD response
+  [#56](https://github.com/cabol/nebulex_redis_adapter/pull/56)
+  ([DanielKulesza](https://github.com/DanielKulesza))
+
 ## [v2.3.1](https://github.com/cabol/nebulex_redis_adapter/tree/v2.3.1) (2023-08-05)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.3.0...v2.3.1)
