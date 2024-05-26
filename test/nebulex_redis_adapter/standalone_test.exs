@@ -6,11 +6,12 @@ defmodule NebulexRedisAdapter.StandaloneTest do
 
   setup do
     {:ok, pid} = Cache.start_link()
-    Cache.delete_all()
-    :ok
+
+    _ = Cache.delete_all()
 
     on_exit(fn ->
       :ok = Process.sleep(100)
+
       if Process.alive?(pid), do: Cache.stop(pid)
     end)
 
