@@ -131,12 +131,14 @@ defmodule NebulexRedisAdapter.Cache.EntryExpTest do
       assert cache.put(1, 11, ttl: 1000) == :ok
       assert cache.get!(1) == 11
 
-      for _ <- 3..1 do
+      for _ <- 1..3 do
         assert cache.ttl(1) > 0
+
         Process.sleep(200)
       end
 
       :ok = Process.sleep(500)
+
       refute cache.ttl(1)
       assert cache.put(1, 11, ttl: 1000) == :ok
       assert cache.ttl(1) > 0

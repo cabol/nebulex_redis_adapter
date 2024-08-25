@@ -9,6 +9,8 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
   alias NebulexRedisAdapter.TestCache.RedisCluster, as: Cache
   alias NebulexRedisAdapter.TestCache.RedisClusterConnError
 
+  @moduletag capture_log: true
+
   setup do
     {:ok, pid} = Cache.start_link()
     _ = Cache.delete_all()
