@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.1](https://github.com/cabol/nebulex_redis_adapter/tree/v2.4.1) (2024-09-01)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.4.0...v2.4.1)
+
+**Closed issues:**
+
+- Redis Cluster ConfigManager process not alive
+  [#60](https://github.com/cabol/nebulex_redis_adapter/issues/60)
+- Potential RCE via `:erlang.binary_to_term`
+  [#59](https://github.com/cabol/nebulex_redis_adapter/issues/59)
+
+**Merged pull requests:**
+
+- Fix `RedisCluster.ConfigManager` going down during setup shards
+  [#61](https://github.com/cabol/nebulex_redis_adapter/pull/61)
+  ([hT013](https://github.com/hT013))
+
 ## [v2.4.0](https://github.com/cabol/nebulex_redis_adapter/tree/v2.4.0) (2024-02-11)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.3.1...v2.4.0)

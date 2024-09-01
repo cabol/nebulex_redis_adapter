@@ -165,7 +165,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
     # Setup the cluster
     with {:ok, specs, conn_opts} <- get_cluster_shards(opts) do
       running_shards =
-        for {start, stop, m_host, m_port} <- specs do
+        Enum.map(specs, fn {start, stop, m_host, m_port} ->
           # Define slot id
           slot_id = {:cluster_shards, start, stop}
 
@@ -200,7 +200,7 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
           # Return the child pid with its monitor reference.
           {pid, ref}
-        end
+        end)
 
       # Return running shards/pools
       {:ok, running_shards}
@@ -282,7 +282,9 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
 
             slot_ranges
             |> Enum.chunk_every(2)
-            |> Enum.reduce(acc, fn [start, stop], acc -> [{start, stop, host, port} | acc] end)
+            |> Enum.reduce(acc, fn [start, stop], acc ->
+              [{start, stop, host, port} | acc]
+            end)
         end
 
       # Redis version < 7 (["CLUSTER", "SLOTS"])
