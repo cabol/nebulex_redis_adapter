@@ -232,6 +232,11 @@ defmodule NebulexRedisAdapter.RedisCluster.ConfigManager do
   end
 
   defp connect(conn_opts) do
+    conn_opts =
+      conn_opts
+      |> Keyword.delete(:sync_connect)
+      |> Keyword.delete(:exit_on_disconnection)
+
     case Keyword.pop(conn_opts, :url) do
       {nil, conn_opts} ->
         with {:ok, conn} <- Redix.start_link(conn_opts) do
