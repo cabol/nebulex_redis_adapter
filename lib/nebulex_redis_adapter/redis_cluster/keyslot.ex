@@ -11,15 +11,10 @@ defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
     @impl true
     def hash_slot(key, range)
 
-    def hash_slot("{" <> hash_tags = key, range) do
-      case String.split(hash_tags, "}") do
-        [key, _] -> do_hash_slot(key, range)
-        _ -> do_hash_slot(key, range)
-      end
-    end
-
     def hash_slot(key, range) when is_binary(key) do
-      do_hash_slot(key, range)
+      key
+      |> compute_key()
+      |> do_hash_slot(range)
     end
 
     def hash_slot(key, range) do
@@ -33,5 +28,28 @@ defmodule NebulexRedisAdapter.RedisCluster.Keyslot do
       |> CRC.crc(key)
       |> rem(range)
     end
+  end
+
+  @doc """
+  Helper function to compute the key; regardless the key contains hashtags
+  or not.
+  """
+  @spec compute_key(binary()) :: binary()
+  def compute_key(key) when is_binary(key) do
+    _ignore =
+      for <<c <- key>>, reduce: nil do
+        nil -> if c == ?{, do: []
+        acc -> if c == ?}, do: throw({:hashtag, acc}), else: [c | acc]
+      end
+
+    key
+  catch
+    {:hashtag, []} ->
+      key
+
+    {:hashtag, ht} ->
+      ht
+      |> Enum.reverse()
+      |> IO.iodata_to_binary()
   end
 end

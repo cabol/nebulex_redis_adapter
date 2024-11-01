@@ -6,6 +6,7 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
   import Nebulex.CacheCase, only: [with_telemetry_handler: 3]
 
   alias NebulexRedisAdapter.RedisCluster
+  alias NebulexRedisAdapter.RedisCluster.Keyslot, as: RedisClusterKeyslot
   alias NebulexRedisAdapter.TestCache.RedisCluster, as: Cache
   alias NebulexRedisAdapter.TestCache.RedisClusterConnError
 
@@ -154,13 +155,25 @@ defmodule NebulexRedisAdapter.RedisClusterTest do
   end
 
   describe "keys with hash tags" do
+    test "compute_key/1" do
+      assert RedisClusterKeyslot.compute_key("{foo}.bar") == "foo"
+      assert RedisClusterKeyslot.compute_key("foo{bar}foo") == "bar"
+      assert RedisClusterKeyslot.compute_key("foo.{bar}") == "bar"
+      assert RedisClusterKeyslot.compute_key("foo.{bar}foo") == "bar"
+      assert RedisClusterKeyslot.compute_key("foo.{}bar") == "foo.{}bar"
+      assert RedisClusterKeyslot.compute_key("foo.{bar") == "foo.{bar"
+      assert RedisClusterKeyslot.compute_key("foo.}bar") == "foo.}bar"
+      assert RedisClusterKeyslot.compute_key("foo.{hello}bar{world}!") == "hello"
+      assert RedisClusterKeyslot.compute_key("foo.bar") == "foo.bar"
+    end
+
     test "hash_slot/2" do
       for i <- 0..10 do
         assert RedisCluster.hash_slot("{foo}.#{i}") ==
                  RedisCluster.hash_slot("{foo}.#{i + 1}")
 
-        assert RedisCluster.hash_slot("{bar}.#{i}") ==
-                 RedisCluster.hash_slot("{bar}.#{i + 1}")
+        assert RedisCluster.hash_slot("foo.{bar}.#{i}") ==
+                 RedisCluster.hash_slot("foo.{bar}.#{i + 1}")
       end
 
       assert RedisCluster.hash_slot("{foo.1") != RedisCluster.hash_slot("{foo.2")
