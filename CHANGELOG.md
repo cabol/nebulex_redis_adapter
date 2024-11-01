@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.2](https://github.com/cabol/nebulex_redis_adapter/tree/v2.4.2) (2024-11-01)
+
+[Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.4.1...v2.4.2)
+
+**Closed issues:**
+
+- `NebulexRedisAdapter.RedisCluster.Keyslot` incorrectly computes slot for
+  hash tags.
+  [#64](https://github.com/cabol/nebulex_redis_adapter/issues/64)
+
 ## [v2.4.1](https://github.com/cabol/nebulex_redis_adapter/tree/v2.4.1) (2024-09-01)
 
 [Full Changelog](https://github.com/cabol/nebulex_redis_adapter/compare/v2.4.0...v2.4.1)
